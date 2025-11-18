@@ -1,3 +1,4 @@
+
 // --- Core Data Structures ---
 
 export type Position = {
@@ -30,6 +31,14 @@ export enum InteractableType {
   ENEMY = 'ENEMY'
 }
 
+export interface EnemyStats {
+  hp: number;
+  maxHp: number;
+  attack: number;
+  defense: number;
+  xpReward: number;
+}
+
 export interface Tile {
   id: string;
   x: number;
@@ -42,6 +51,7 @@ export interface Tile {
     isHidden?: boolean; // Requires 'Shift' to see
     dialogue?: string[];
     itemReward?: Item;
+    combatStats?: EnemyStats;
   };
   isRevealed: boolean;
 }
@@ -60,8 +70,19 @@ export interface PlayerStats {
   maxHp: number;
   mp: number; // Ether Capacity
   maxMp: number;
+  attack: number;
+  defense: number;
   level: number;
   xp: number;
+}
+
+export interface ActiveEnemy {
+  id: string; // To match with tile id for removal
+  name: string;
+  hp: number;
+  maxHp: number;
+  attack: number;
+  xpReward: number;
 }
 
 export interface GameState {
@@ -73,6 +94,7 @@ export interface GameState {
   isShiftActive: boolean; // The core mechanic
   gameLog: LogEntry[];
   isCombatActive: boolean;
+  activeEnemy: ActiveEnemy | null;
 }
 
 export interface LogEntry {

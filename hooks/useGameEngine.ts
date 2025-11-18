@@ -1,6 +1,22 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { GameState, Direction, Position, LogEntry, Tile, InteractableType, TileType } from '../types';
 import { GRID_WIDTH, GRID_HEIGHT, INITIAL_LOG_MESSAGE, generateZone } from '../constants';
+
+// Helper to calculate visibility
+const calculateVisibility = (tiles: Tile[], center: Position, radius: number = 2.5): Tile[] => {
+  return tiles.map(tile => {
+    if (tile.isRevealed) return tile; // Already revealed, stay revealed
+
+    // Euclidean distance check
+    const distance = Math.sqrt(Math.pow(tile.x - center.x, 2) + Math.pow(tile.y - center.y, 2));
+    
+    if (distance <= radius) {
+      return { ...tile, isRevealed: true };
+    }
+    return tile;
+  });
+};
 
 export const useGameEngine = () => {
   // --- State Initialization ---
@@ -13,6 +29,8 @@ export const useGameEngine = () => {
       maxHp: 100,
       mp: 50,
       maxMp: 50,
+      attack: 10,
+      defense: 5,
       level: 1,
       xp: 0,
     },
@@ -21,6 +39,7 @@ export const useGameEngine = () => {
     isShiftActive: false,
     gameLog: [],
     isCombatActive: false,
+    activeEnemy: null,
   });
 
   // --- Helpers ---
@@ -43,21 +62,115 @@ export const useGameEngine = () => {
   // --- Initialization Effect ---
   useEffect(() => {
     const initialTiles = generateZone(GRID_WIDTH, GRID_HEIGHT);
-    setTiles(initialTiles);
+    // Reveal starting area
+    const revealedTiles = calculateVisibility(initialTiles, { x: 2, y: 5 });
+    setTiles(revealedTiles);
     addLog(INITIAL_LOG_MESSAGE, 'SYSTEM');
   }, [addLog]);
 
   // --- Actions ---
 
   const toggleShift = useCallback(() => {
+    if (gameState.isCombatActive) return;
     setGameState(prev => {
       const newState = !prev.isShiftActive;
       addLog(newState ? ">> ETHER SHIFT ACTIVATED <<" : "Shift disengaged. Reality stabilized.", 'SYSTEM');
       return { ...prev, isShiftActive: newState };
     });
+  }, [addLog, gameState.isCombatActive]);
+
+  // --- Combat Logic ---
+
+  const resolveCombatTurn = useCallback((enemySurvivorsHp: number, enemyId: string) => {
+      // Enemy Turn
+      setGameState(prev => {
+          const enemyDamage = Math.max(1, (prev.activeEnemy?.attack || 5) - Math.floor(prev.stats.defense / 2));
+          const playerNewHp = Math.max(0, prev.stats.hp - enemyDamage);
+
+          addLog(`${prev.activeEnemy?.name} strikes! You take ${enemyDamage} DMG.`, 'COMBAT');
+
+          if (playerNewHp <= 0) {
+              addLog("CRITICAL FAILURE. SYSTEM SHUTTING DOWN...", 'SYSTEM');
+              // TODO: Handle Game Over
+          }
+
+          return {
+              ...prev,
+              stats: { ...prev.stats, hp: playerNewHp },
+              activeEnemy: prev.activeEnemy ? { ...prev.activeEnemy, hp: enemySurvivorsHp } : null
+          };
+      });
   }, [addLog]);
 
+  const handleCombatAction = useCallback((action: 'ATTACK' | 'SKILL' | 'FLEE') => {
+      if (!gameState.activeEnemy) return;
+
+      if (action === 'FLEE') {
+          addLog("You disengaged from combat.", 'INFO');
+          setGameState(prev => ({ ...prev, isCombatActive: false, activeEnemy: null }));
+          return;
+      }
+
+      // Player Turn Calculation
+      let damage = 0;
+      let mpCost = 0;
+
+      if (action === 'ATTACK') {
+          damage = Math.floor(gameState.stats.attack * (0.8 + Math.random() * 0.4)); // +/- 20% variance
+      } else if (action === 'SKILL') {
+          mpCost = 10;
+          if (gameState.stats.mp < mpCost) {
+              addLog("Insufficient Ether (MP)!", 'SYSTEM');
+              return;
+          }
+          damage = Math.floor(gameState.stats.attack * 2.5); // Big damage
+          addLog("You cast 'Code Breaker'!", 'COMBAT');
+      }
+
+      // Apply costs
+      setGameState(prev => ({
+          ...prev,
+          stats: { ...prev.stats, mp: prev.stats.mp - mpCost }
+      }));
+
+      // Apply Damage to Enemy
+      const enemyNewHp = gameState.activeEnemy.hp - damage;
+      addLog(`You dealt ${damage} damage to ${gameState.activeEnemy.name}.`, 'COMBAT');
+
+      if (enemyNewHp <= 0) {
+          // Victory
+          const xpGain = gameState.activeEnemy.xpReward;
+          addLog(`Target eliminated. Gained ${xpGain} XP.`, 'SYSTEM');
+          
+          // Update State: Heal slight HP on win? No, classic RPG.
+          setGameState(prev => ({
+              ...prev,
+              isCombatActive: false,
+              activeEnemy: null,
+              stats: { ...prev.stats, xp: prev.stats.xp + xpGain }
+          }));
+
+          // Remove enemy from world
+          const enemyTileId = gameState.activeEnemy.id; // We stored tile id here via logic below
+          setTiles(prev => prev.map(t => {
+             // Logic to find the tile with this interactable
+             if (t.interactable?.id === enemyTileId.split('::')[1]) {
+                 return { ...t, interactable: undefined };
+             }
+             return t;
+          }));
+
+      } else {
+          // Trigger Enemy Turn
+          resolveCombatTurn(enemyNewHp, gameState.activeEnemy.id);
+      }
+
+  }, [gameState, addLog, resolveCombatTurn]);
+
+
   const handleInteraction = useCallback(() => {
+    if (gameState.isCombatActive) return;
+
     const { x, y } = gameState.playerPos;
     // Determine target tile based on facing direction
     let targetX = x;
@@ -104,11 +217,21 @@ export const useGameEngine = () => {
             ));
         }
     } else if (interactable.type === InteractableType.ENEMY) {
-        addLog("Combat protocols initialized. (Combat System WIP)", 'COMBAT');
-        // Placeholder for Phase 3 Combat
+        if (interactable.combatStats) {
+            addLog(`⚠️ ENCOUNTER: ${interactable.name} engaged!`, 'COMBAT');
+            setGameState(prev => ({
+                ...prev,
+                isCombatActive: true,
+                activeEnemy: {
+                    id: `combat::${interactable.id}`, // store ID to remove later
+                    name: interactable.name,
+                    ...interactable.combatStats!
+                }
+            }));
+        }
     }
 
-  }, [gameState.playerPos, gameState.playerFacing, gameState.isShiftActive, tiles, addLog]);
+  }, [gameState.playerPos, gameState.playerFacing, gameState.isShiftActive, gameState.isCombatActive, tiles, addLog]);
 
   const movePlayer = useCallback((dx: number, dy: number) => {
     if (gameState.isCombatActive) return;
@@ -122,11 +245,13 @@ export const useGameEngine = () => {
 
       // Collision Check
       const targetTile = tiles.find(t => t.x === newX && t.y === newY);
+      
+      // Wall Collision
       if (targetTile?.type === TileType.WALL && !prev.isShiftActive) {
-          // Wall bump effect could go here
           return prev; 
       }
-      // Water Check
+      
+      // Water Collision
       if (targetTile?.type === TileType.WATER) return prev;
 
       // Determine Facing
@@ -135,6 +260,9 @@ export const useGameEngine = () => {
       if (dx < 0) newFacing = Direction.LEFT;
       if (dy > 0) newFacing = Direction.DOWN;
       if (dy < 0) newFacing = Direction.UP;
+
+      // Update Fog of War (Side Effect in State Update)
+      setTiles(currentTiles => calculateVisibility(currentTiles, { x: newX, y: newY }));
 
       return {
         ...prev,
@@ -147,6 +275,10 @@ export const useGameEngine = () => {
   // --- Input Handling ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      // Combat Controls
+      if (gameState.isCombatActive) return; // Combat has its own UI controls for now
+
+      // Movement Controls
       switch (e.key) {
         case 'w':
         case 'ArrowUp':
@@ -177,7 +309,7 @@ export const useGameEngine = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [movePlayer, toggleShift, handleInteraction]);
+  }, [movePlayer, toggleShift, handleInteraction, gameState.isCombatActive]);
 
   return {
     tiles,
@@ -185,7 +317,8 @@ export const useGameEngine = () => {
     actions: {
         movePlayer,
         toggleShift,
-        handleInteraction
+        handleInteraction,
+        handleCombatAction
     }
   };
 };

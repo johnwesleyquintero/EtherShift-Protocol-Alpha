@@ -1,3 +1,4 @@
+
 import { Item, Tile, TileType, InteractableType } from './types';
 
 export const GRID_WIDTH = 12;
@@ -70,13 +71,30 @@ export const generateZone = (width: number, height: number): Tile[] => {
         };
       }
 
+      // Add Enemy
+      if (x === 8 && y === 5) {
+        interactable = {
+          type: InteractableType.ENEMY,
+          id: 'enemy_glitch_01',
+          name: 'Glitch Sentinel',
+          isHidden: false,
+          combatStats: {
+            hp: 50,
+            maxHp: 50,
+            attack: 8,
+            defense: 2,
+            xpReward: 25
+          }
+        };
+      }
+
       tiles.push({
         id,
         x,
         y,
         type,
         interactable,
-        isRevealed: true, // Fog of war disabled for proto
+        isRevealed: false, // Fog of War enabled: Hidden by default
       });
     }
   }

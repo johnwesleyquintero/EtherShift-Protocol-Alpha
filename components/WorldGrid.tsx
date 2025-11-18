@@ -24,7 +24,26 @@ export const WorldGrid: React.FC<WorldGridProps> = ({ tiles, gameState }) => {
         {tiles.map((tile) => {
           const isPlayerHere = tile.x === gameState.playerPos.x && tile.y === gameState.playerPos.y;
           
-          // Visual Logic
+          // --- Fog of War Logic ---
+          if (!tile.isRevealed) {
+              return (
+                  <div 
+                    key={tile.id}
+                    className="relative flex items-center justify-center bg-black transition-colors duration-500"
+                  >
+                     {/* Player is always visible even in 'darkness' if they glitch into it, but ideally player moves reveal first */}
+                     {isPlayerHere && (
+                        <div className={`z-10 relative ${gameState.playerFacing === Direction.LEFT ? '-scale-x-100' : ''}`}>
+                            <User size={24} className="text-white opacity-50" />
+                        </div>
+                     )}
+                     {/* Subtle grid noise for the void */}
+                     <div className="absolute inset-0 opacity-10 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMiIgaGVpZ2h0PSIyIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxyZWN0IHdpZHRoPSIxIiBoZWlnaHQ9IjEiIGZpbGw9IiMzMzMiLz48L3N2Zz4=')]"></div>
+                  </div>
+              );
+          }
+
+          // --- Revealed Tile Logic ---
           let bgClass = "bg-slate-800";
           let Icon = null;
           let iconColor = "text-slate-600";
@@ -91,9 +110,6 @@ export const WorldGrid: React.FC<WorldGridProps> = ({ tiles, gameState }) => {
                         )}
                     </div>
                 )}
-
-                {/* Coordinate Debug (Optional, for Architect) */}
-                {/* <span className="absolute bottom-0 right-0 text-[8px] text-slate-600">{tile.x},{tile.y}</span> */}
             </div>
           );
         })}

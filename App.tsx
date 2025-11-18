@@ -1,12 +1,14 @@
+
 import React from 'react';
 import { useGameEngine } from './hooks/useGameEngine';
 import { WorldGrid } from './components/WorldGrid';
+import { CombatArena } from './components/CombatArena';
 import { StatusPanel } from './components/HUD/StatusPanel';
 import { LogConsole } from './components/HUD/LogConsole';
 import { Keyboard, Monitor, Cpu } from 'lucide-react';
 
 const App: React.FC = () => {
-  const { tiles, gameState } = useGameEngine();
+  const { tiles, gameState, actions } = useGameEngine();
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 font-mono selection:bg-cyan-900 selection:text-white flex items-center justify-center p-4 lg:p-8 overflow-hidden relative">
@@ -14,8 +16,11 @@ const App: React.FC = () => {
       {/* CRT Overlay Effects */}
       <div className="pointer-events-none fixed inset-0 z-50 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_2px,3px_100%] pointer-events-none"></div>
       <div className="pointer-events-none fixed inset-0 z-40 shadow-[inset_0_0_100px_rgba(0,0,0,0.9)]"></div>
-      {gameState.isShiftActive && (
+      {gameState.isShiftActive && !gameState.isCombatActive && (
          <div className="pointer-events-none fixed inset-0 z-30 bg-cyan-500/5 animate-pulse"></div>
+      )}
+      {gameState.isCombatActive && (
+         <div className="pointer-events-none fixed inset-0 z-30 bg-red-900/10 animate-pulse"></div>
       )}
 
       {/* Main Game Container */}
@@ -28,25 +33,43 @@ const App: React.FC = () => {
         </div>
 
         {/* Left Column: Game Viewport */}
-        <div className="lg:col-span-8 flex flex-col gap-4">
+        <div className="lg:col-span-8 flex flex-col gap-4 h-[500px] lg:h-auto">
             <div className="flex justify-between items-center px-2">
                 <div className="flex items-center gap-2 text-xs text-slate-500">
                     <Monitor size={14} />
                     <span>SYS.VISUAL_FEED</span>
                 </div>
                 <div className="flex items-center gap-2 text-xs text-slate-500">
-                    <span>ZONE: {gameState.currentZone}</span>
+                    <span className={`${gameState.isCombatActive ? 'text-red-500 font-bold animate-pulse' : ''}`}>
+                        STATUS: {gameState.isCombatActive ? '⚠️ COMBAT ENGAGED' : 'NORMAL'}
+                    </span>
                 </div>
             </div>
             
-            {/* The Map */}
-            <WorldGrid tiles={tiles} gameState={gameState} />
+            {/* The Main View: Switches between Map and Combat */}
+            <div className="flex-1 relative">
+                {gameState.isCombatActive ? (
+                    <CombatArena 
+                        enemy={gameState.activeEnemy} 
+                        playerStats={gameState.stats}
+                        onAction={actions.handleCombatAction}
+                    />
+                ) : (
+                    <WorldGrid tiles={tiles} gameState={gameState} />
+                )}
+            </div>
             
             {/* Instructions */}
             <div className="hidden lg:flex justify-between text-xs text-slate-500 px-2 border-t border-slate-800 pt-2">
-                <span className="flex items-center gap-1"><Keyboard size={12} /> WASD: Move</span>
-                <span className="flex items-center gap-1"><Cpu size={12} /> SPACE: Ether Shift</span>
-                <span>E / ENTER: Interact</span>
+                {!gameState.isCombatActive ? (
+                    <>
+                        <span className="flex items-center gap-1"><Keyboard size={12} /> WASD: Move</span>
+                        <span className="flex items-center gap-1"><Cpu size={12} /> SPACE: Ether Shift</span>
+                        <span>E / ENTER: Interact</span>
+                    </>
+                ) : (
+                     <span className="text-red-400">COMBAT PROTOCOLS ACTIVE. SELECT ACTION.</span>
+                )}
             </div>
         </div>
 
@@ -56,7 +79,7 @@ const App: React.FC = () => {
                 <h1 className="text-4xl font-bold text-cyan-500 tracking-tighter drop-shadow-[0_0_10px_rgba(34,211,238,0.5)]">
                     ETHER<span className="text-slate-100">SHIFT</span>
                 </h1>
-                <p className="text-slate-500 text-xs uppercase tracking-widest mt-1">Protocol Alpha // v2.2</p>
+                <p className="text-slate-500 text-xs uppercase tracking-widest mt-1">Protocol Alpha // v2.3</p>
             </div>
 
             <StatusPanel stats={gameState.stats} isShiftActive={gameState.isShiftActive} />
