@@ -5,6 +5,7 @@ import { WorldGrid } from './components/WorldGrid';
 import { CombatArena } from './components/CombatArena';
 import { StatusPanel } from './components/HUD/StatusPanel';
 import { LogConsole } from './components/HUD/LogConsole';
+import { DialogueOverlay } from './components/HUD/DialogueOverlay';
 import { Keyboard, Monitor, Cpu, Globe } from 'lucide-react';
 
 const App: React.FC = () => {
@@ -16,7 +17,7 @@ const App: React.FC = () => {
       {/* CRT Overlay Effects */}
       <div className="pointer-events-none fixed inset-0 z-50 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_2px,3px_100%] pointer-events-none"></div>
       <div className="pointer-events-none fixed inset-0 z-40 shadow-[inset_0_0_100px_rgba(0,0,0,0.9)]"></div>
-      {gameState.isShiftActive && !gameState.isCombatActive && !gameState.isTransitioning && (
+      {gameState.isShiftActive && !gameState.isCombatActive && !gameState.isTransitioning && !gameState.isDialogueActive && (
          <div className="pointer-events-none fixed inset-0 z-30 bg-cyan-500/5 animate-pulse"></div>
       )}
       {gameState.isCombatActive && (
@@ -33,6 +34,14 @@ const App: React.FC = () => {
                 ESTABLISHING HANDSHAKE // {gameState.currentZoneId.toUpperCase()}
             </div>
         </div>
+      )}
+
+      {/* Narrative Overlay */}
+      {gameState.isDialogueActive && gameState.activeDialogue && (
+        <DialogueOverlay 
+          activeDialogue={gameState.activeDialogue} 
+          onSelectOption={actions.selectDialogueOption} 
+        />
       )}
 
       {/* Main Game Container */}
@@ -54,7 +63,7 @@ const App: React.FC = () => {
                 <div className="flex items-center gap-2 text-xs text-slate-500">
                     <span className="text-cyan-600 mr-2">[{gameState.currentZoneName.toUpperCase()}]</span>
                     <span className={`${gameState.isCombatActive ? 'text-red-500 font-bold animate-pulse' : ''}`}>
-                        STATUS: {gameState.isCombatActive ? '⚠️ COMBAT ENGAGED' : 'NORMAL'}
+                        STATUS: {gameState.isCombatActive ? '⚠️ COMBAT ENGAGED' : (gameState.isDialogueActive ? '🔵 DATA TRANSFER' : 'NORMAL')}
                     </span>
                 </div>
             </div>
@@ -75,12 +84,14 @@ const App: React.FC = () => {
             
             {/* Instructions */}
             <div className="hidden lg:flex justify-between text-xs text-slate-500 px-2 border-t border-slate-800 pt-2">
-                {!gameState.isCombatActive ? (
+                {!gameState.isCombatActive && !gameState.isDialogueActive ? (
                     <>
                         <span className="flex items-center gap-1"><Keyboard size={12} /> WASD: Move</span>
                         <span className="flex items-center gap-1"><Cpu size={12} /> SPACE: Ether Shift</span>
                         <span>E / ENTER: Interact</span>
                     </>
+                ) : gameState.isDialogueActive ? (
+                    <span className="text-cyan-400">INCOMING TRANSMISSION. SELECT RESPONSE.</span>
                 ) : (
                      <span className="text-red-400">COMBAT PROTOCOLS ACTIVE. EXECUTE RUNES.</span>
                 )}
@@ -93,10 +104,14 @@ const App: React.FC = () => {
                 <h1 className="text-4xl font-bold text-cyan-500 tracking-tighter drop-shadow-[0_0_10px_rgba(34,211,238,0.5)]">
                     ETHER<span className="text-slate-100">SHIFT</span>
                 </h1>
-                <p className="text-slate-500 text-xs uppercase tracking-widest mt-1">Protocol Alpha // v2.3</p>
+                <p className="text-slate-500 text-xs uppercase tracking-widest mt-1">Protocol Alpha // v2.4</p>
             </div>
 
-            <StatusPanel stats={gameState.stats} isShiftActive={gameState.isShiftActive} />
+            <StatusPanel 
+                stats={gameState.stats} 
+                isShiftActive={gameState.isShiftActive} 
+                systemActions={actions.system} 
+            />
 
             <div className="flex-1 min-h-[200px] flex flex-col">
                 <div className="flex items-center gap-2 text-xs text-slate-500 mb-2 uppercase">

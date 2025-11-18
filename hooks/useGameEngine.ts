@@ -1,7 +1,9 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { GameState, Direction, Position, LogEntry, Tile, InteractableType, TileType, TransitionMetadata, Skill } from '../types';
-import { GRID_WIDTH, GRID_HEIGHT, INITIAL_LOG_MESSAGE, loadZoneData, PLAYER_SKILLS } from '../constants';
+import { GRID_WIDTH, GRID_HEIGHT, INITIAL_LOG_MESSAGE, loadZoneData, PLAYER_SKILLS, DIALOGUE_DB } from '../constants';
+
+const SAVE_KEY = 'ethershift_save_protocol_alpha';
 
 // Helper to calculate visibility
 const calculateVisibility = (tiles: Tile[], center: Position, radius: number = 2.5): Tile[] => {
@@ -16,6 +18,18 @@ const calculateVisibility = (tiles: Tile[], center: Position, radius: number = 2
     }
     return tile;
   });
+};
+
+// Helper to clean tiles based on history (removes killed enemies/looted chests)
+const filterTilesByHistory = (tiles: Tile[], interactedIds: string[]): Tile[] => {
+    if (interactedIds.length === 0) return tiles;
+    
+    return tiles.map(tile => {
+        if (tile.interactable && interactedIds.includes(tile.interactable.id)) {
+            return { ...tile, interactable: undefined };
+        }
+        return tile;
+    });
 };
 
 export const useGameEngine = () => {
@@ -49,6 +63,9 @@ export const useGameEngine = () => {
     },
     activeEnemy: null,
     isTransitioning: false,
+    isDialogueActive: false,
+    activeDialogue: null,
+    interactedEntityIds: [],
   });
 
   // --- Helpers ---
@@ -66,6 +83,46 @@ export const useGameEngine = () => {
         ...prev.gameLog.slice(0, 49) // Keep last 50
       ]
     }));
+  }, []);
+
+  // --- System Operations (Save/Load) ---
+
+  const saveGame = useCallback(() => {
+      if (gameState.isCombatActive || gameState.isTransitioning || gameState.isDialogueActive) {
+          addLog("ERROR: Cannot backup during active protocols.", 'SYSTEM');
+          return;
+      }
+
+      const payload = JSON.stringify({
+          gameState,
+          tiles
+      });
+      localStorage.setItem(SAVE_KEY, payload);
+      addLog("SYSTEM BACKUP COMPLETE. MEMORY SECURED.", 'SYSTEM');
+  }, [gameState, tiles, addLog]);
+
+  const loadGame = useCallback(() => {
+      const rawData = localStorage.getItem(SAVE_KEY);
+      if (!rawData) {
+          addLog("ERROR: No backup found in local drives.", 'SYSTEM');
+          return;
+      }
+
+      try {
+          const parsed = JSON.parse(rawData);
+          // Basic validation could go here
+          setGameState(parsed.gameState);
+          setTiles(parsed.tiles);
+          addLog("SYSTEM RESTORED. WELCOME BACK, OPERATOR.", 'SYSTEM');
+      } catch (e) {
+          console.error(e);
+          addLog("CRITICAL ERROR: Corrupted backup file.", 'SYSTEM');
+      }
+  }, [addLog]);
+
+  const resetGame = useCallback(() => {
+      localStorage.removeItem(SAVE_KEY);
+      window.location.reload();
   }, []);
 
   // --- Initialization Effect ---
@@ -89,13 +146,13 @@ export const useGameEngine = () => {
   // --- Actions ---
 
   const toggleShift = useCallback(() => {
-    if (gameState.isCombatActive || gameState.isTransitioning) return;
+    if (gameState.isCombatActive || gameState.isTransitioning || gameState.isDialogueActive) return;
     setGameState(prev => {
       const newState = !prev.isShiftActive;
       addLog(newState ? ">> ETHER SHIFT ACTIVATED <<" : "Shift disengaged. Reality stabilized.", 'SYSTEM');
       return { ...prev, isShiftActive: newState };
     });
-  }, [addLog, gameState.isCombatActive, gameState.isTransitioning]);
+  }, [addLog, gameState.isCombatActive, gameState.isTransitioning, gameState.isDialogueActive]);
 
   // --- Zone Transition Logic ---
 
@@ -109,10 +166,17 @@ export const useGameEngine = () => {
       // 2. Delay for visual effect (Simulate load/travel time)
       setTimeout(() => {
           // 3. Load New Zone Data
-          const newTiles = loadZoneData(meta.targetZoneId);
+          let newTiles = loadZoneData(meta.targetZoneId);
+          
+          // 4. Apply History (Remove previously killed/looted entities)
+          // We need to access the *latest* interactedEntityIds, so we do this inside the setTiles if possible, 
+          // but here we need to calculate visibility first. 
+          // We will trust gameState.interactedEntityIds is up to date.
+          newTiles = filterTilesByHistory(newTiles, gameState.interactedEntityIds);
+
           const revealedTiles = calculateVisibility(newTiles, meta.targetPosition);
 
-          // 4. Update State
+          // 5. Update State
           setTiles(revealedTiles);
           setGameState(prev => ({
               ...prev,
@@ -126,7 +190,41 @@ export const useGameEngine = () => {
           addLog(`CONNECTION ESTABLISHED: ${meta.targetZoneName}`, 'SYSTEM');
       }, 1500);
 
-  }, [gameState.isTransitioning, addLog]);
+  }, [gameState.isTransitioning, gameState.interactedEntityIds, addLog]);
+
+  // --- Dialogue Logic ---
+
+  const selectDialogueOption = useCallback((nextId: string | null) => {
+    setGameState(prev => {
+      if (!prev.activeDialogue) return prev;
+
+      // If nextId is null, close dialogue
+      if (nextId === null) {
+        return {
+          ...prev,
+          isDialogueActive: false,
+          activeDialogue: null
+        };
+      }
+
+      // Look up next node in the tree
+      const tree = DIALOGUE_DB[prev.activeDialogue.treeId];
+      const nextNode = tree?.nodes[nextId];
+
+      if (!nextNode) {
+        // Fallback closure if node missing
+        return { ...prev, isDialogueActive: false, activeDialogue: null };
+      }
+
+      return {
+        ...prev,
+        activeDialogue: {
+          ...prev.activeDialogue,
+          currentNode: nextNode
+        }
+      };
+    });
+  }, []);
 
   // --- Combat Logic ---
 
@@ -140,7 +238,7 @@ export const useGameEngine = () => {
 
           if (playerNewHp <= 0) {
               addLog("CRITICAL FAILURE. SYSTEM SHUTTING DOWN...", 'SYSTEM');
-              // TODO: Handle Game Over
+              // TODO: Handle Game Over (Auto load?)
           }
 
           return {
@@ -203,15 +301,17 @@ export const useGameEngine = () => {
           
           if (enemyNewHp <= 0) {
              // Victory
-             const { xpReward, creditsReward, itemReward } = prev.activeEnemy!;
+             const { xpReward, creditsReward, itemReward, id } = prev.activeEnemy!;
+             // Extract original Interactable ID from the combat ID (combat::id)
+             const originalId = id.split('::')[1];
+
              addLog(`Target eliminated. +${xpReward} XP, +${creditsReward} Credits`, 'SYSTEM');
              
              if (itemReward) addLog(`LOOT: Retrieved [${itemReward.name}]`, 'INFO');
 
              // Remove Enemy from World
-             const enemyTileId = prev.activeEnemy!.id;
              setTiles(tPrev => tPrev.map(t => 
-                t.interactable?.id === enemyTileId.split('::')[1] 
+                t.interactable?.id === originalId 
                 ? { ...t, interactable: undefined } 
                 : t
              ));
@@ -222,7 +322,9 @@ export const useGameEngine = () => {
                  activeEnemy: null,
                  inventory: itemReward ? [...prev.inventory, itemReward] : prev.inventory,
                  stats: { ...prev.stats, mp: newMp, hp: newHp, xp: prev.stats.xp + xpReward, credits: prev.stats.credits + creditsReward },
-                 combatState: { phase: 'MENU', selectedSkillId: null, inputBuffer: [], lastInputResult: 'NEUTRAL' }
+                 combatState: { phase: 'MENU', selectedSkillId: null, inputBuffer: [], lastInputResult: 'NEUTRAL' },
+                 // PERSISTENCE: Add enemy ID to history so it doesn't respawn
+                 interactedEntityIds: [...prev.interactedEntityIds, originalId]
              };
           }
 
@@ -262,7 +364,7 @@ export const useGameEngine = () => {
   };
 
   const handleInteraction = useCallback(() => {
-    if (gameState.isCombatActive || gameState.isTransitioning) return;
+    if (gameState.isCombatActive || gameState.isTransitioning || gameState.isDialogueActive) return;
 
     const { x, y } = gameState.playerPos;
     // Determine target tile based on facing direction
@@ -300,12 +402,28 @@ export const useGameEngine = () => {
 
     // Interaction Logic
     if (interactable.type === InteractableType.NPC) {
-      addLog(`${interactable.name}: "${interactable.dialogue?.[0]}"`, 'DIALOGUE');
+      // CHECK FOR COMPLEX DIALOGUE
+      if (interactable.dialogueId && DIALOGUE_DB[interactable.dialogueId]) {
+        const tree = DIALOGUE_DB[interactable.dialogueId];
+        setGameState(prev => ({
+          ...prev,
+          isDialogueActive: true,
+          activeDialogue: {
+            treeId: tree.id,
+            currentNode: tree.nodes[tree.startNodeId]
+          }
+        }));
+      } else {
+        // Fallback to simple bark
+        addLog(`${interactable.name}: "${interactable.dialogue?.[0]}"`, 'DIALOGUE');
+      }
     } else if (interactable.type === InteractableType.ITEM) {
         if (interactable.itemReward) {
             setGameState(prev => ({
                 ...prev,
-                inventory: [...prev.inventory, interactable.itemReward!]
+                inventory: [...prev.inventory, interactable.itemReward!],
+                // PERSISTENCE: Track looted item
+                interactedEntityIds: [...prev.interactedEntityIds, interactable.id] 
             }));
             addLog(`Acquired: ${interactable.itemReward.name}`, 'INFO');
             
@@ -338,10 +456,10 @@ export const useGameEngine = () => {
         }
     }
 
-  }, [gameState.playerPos, gameState.playerFacing, gameState.isShiftActive, gameState.isCombatActive, gameState.isTransitioning, tiles, addLog, triggerZoneTransition]);
+  }, [gameState, tiles, addLog, triggerZoneTransition]);
 
   const movePlayer = useCallback((dx: number, dy: number) => {
-    if (gameState.isCombatActive || gameState.isTransitioning) return;
+    if (gameState.isCombatActive || gameState.isTransitioning || gameState.isDialogueActive) return;
 
     setGameState(prev => {
       const newX = prev.playerPos.x + dx;
@@ -385,7 +503,7 @@ export const useGameEngine = () => {
         playerFacing: newFacing
       };
     });
-  }, [tiles, gameState.isCombatActive, gameState.isTransitioning, triggerZoneTransition]);
+  }, [tiles, gameState.isCombatActive, gameState.isTransitioning, gameState.isDialogueActive, triggerZoneTransition]);
 
   // --- Combat Input Handling (Runes) ---
   const handleRuneInput = useCallback((dir: Direction) => {
@@ -446,6 +564,24 @@ export const useGameEngine = () => {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       
+      // Dialogue Controls
+      if (gameState.isDialogueActive && gameState.activeDialogue) {
+        // Number keys for options
+        if (['1', '2', '3', '4'].includes(e.key)) {
+          const index = parseInt(e.key) - 1;
+          const options = gameState.activeDialogue.currentNode.options;
+          if (options[index]) {
+            selectDialogueOption(options[index].nextId);
+          }
+        }
+        // Escape to exit if allowed (or just basic exit safety)
+        if (e.key === 'Escape') {
+          // Optional: Check if there is a 'leave' option, otherwise force close
+           selectDialogueOption(null);
+        }
+        return;
+      }
+
       // Combat Controls - Rune Input
       if (gameState.isCombatActive) {
           if (gameState.combatState.phase === 'INPUT') {
@@ -494,7 +630,7 @@ export const useGameEngine = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [movePlayer, toggleShift, handleInteraction, gameState.isCombatActive, gameState.combatState, gameState.isTransitioning, handleRuneInput]);
+  }, [movePlayer, toggleShift, handleInteraction, gameState.isCombatActive, gameState.combatState, gameState.isTransitioning, handleRuneInput, gameState.isDialogueActive, selectDialogueOption, gameState.activeDialogue]);
 
   return {
     tiles,
@@ -503,7 +639,13 @@ export const useGameEngine = () => {
         movePlayer,
         toggleShift,
         handleInteraction,
-        handleCombatUI
+        handleCombatUI,
+        selectDialogueOption,
+        system: {
+            saveGame,
+            loadGame,
+            resetGame
+        }
     }
   };
 };

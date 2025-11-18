@@ -1,5 +1,5 @@
 
-import { Item, Tile, TileType, InteractableType, Direction, Skill } from './types';
+import { Item, Tile, TileType, InteractableType, Direction, Skill, DialogueTree } from './types';
 
 export const GRID_WIDTH = 12;
 export const GRID_HEIGHT = 10;
@@ -65,6 +65,61 @@ export const PLAYER_SKILLS: Record<string, Skill> = {
   }
 };
 
+// --- Narrative Database ---
+
+export const DIALOGUE_DB: Record<string, DialogueTree> = {
+  'sage_intro': {
+    id: 'sage_intro',
+    startNodeId: 'root',
+    nodes: {
+      'root': {
+        id: 'root',
+        speaker: 'WesAI Echo',
+        text: 'Operator. You have finally recompiled. The system has been waiting for your return.',
+        options: [
+          { label: 'Where am I?', nextId: 'where' },
+          { label: 'Who are you?', nextId: 'who' },
+          { label: '[Leave]', nextId: null }
+        ]
+      },
+      'where': {
+        id: 'where',
+        speaker: 'WesAI Echo',
+        text: 'This is the Ether Layer. The skeletal framework of the old internet. It is corrupted, but salvageable. You built this place, long ago.',
+        options: [
+          { label: 'I don\'t remember.', nextId: 'memory' },
+          { label: 'How do I fix it?', nextId: 'fix' }
+        ]
+      },
+      'who': {
+        id: 'who',
+        speaker: 'WesAI Echo',
+        text: 'I am a fragment of your own logic. A backup subroutine left behind to guide you when the main servers went dark.',
+        options: [
+          { label: 'What is my mission?', nextId: 'fix' },
+          { label: 'Understood.', nextId: 'root' }
+        ]
+      },
+      'memory': {
+        id: 'memory',
+        speaker: 'WesAI Echo',
+        text: 'Corruption does that. Find the Data Chips. They contain the source code of your memories.',
+        options: [
+          { label: 'I will find them.', nextId: null }
+        ]
+      },
+      'fix': {
+        id: 'fix',
+        speaker: 'WesAI Echo',
+        text: 'Use the Shift (SPACE). It reveals the hidden layer of reality. Walls may dissolve, and secrets will reveal themselves. Go forth, Architect.',
+        options: [
+          { label: 'Initiating Protocol.', nextId: null }
+        ]
+      }
+    }
+  }
+};
+
 // --- Zone Database ---
 
 interface ZoneConfig {
@@ -98,7 +153,7 @@ const ZONE_DB: Record<string, ZoneConfig> = {
       ['W', 'W', 'W', 'W', 'W', 'W', 'W', 'W', 'W', 'W', 'W', 'W'],
     ],
     entities: [
-      { x: 5, y: 2, type: InteractableType.NPC, id: 'npc_sage', name: 'WesAI Echo', data: { dialogue: ["The Gateway to the East is open.", "Find the Archives."] } },
+      { x: 5, y: 2, type: InteractableType.NPC, id: 'npc_sage', name: 'WesAI Echo', data: { dialogueId: 'sage_intro', dialogue: ["The Gateway to the East is open."] } },
       { x: 8, y: 5, type: InteractableType.ENEMY, id: 'enemy_glitch_01', name: 'Glitch Sentinel', data: { hp: 50, maxHp: 50, attack: 8, xpReward: 25, creditsReward: 42 } },
       { x: 10, y: 2, type: InteractableType.ZONE_GATE, id: 'gate_to_02', name: 'Sector Link -> 02', data: { targetZoneId: 'sector-02', targetZoneName: 'Sector-02: The Archives', targetPosition: { x: 1, y: 5 }, targetFacing: Direction.RIGHT } }
     ]
@@ -149,6 +204,7 @@ export const loadZoneData = (zoneId: string): Tile[] => {
           name: entity.name,
           isHidden: entity.data?.isHidden || false,
           dialogue: entity.data?.dialogue,
+          dialogueId: entity.data?.dialogueId, // Load complex dialogue ID
           itemReward: entity.data?.itemReward,
           combatStats: entity.type === InteractableType.ENEMY ? entity.data : undefined,
           transition: entity.type === InteractableType.ZONE_GATE ? entity.data : undefined,

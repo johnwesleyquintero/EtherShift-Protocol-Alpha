@@ -48,6 +48,26 @@ export interface TransitionMetadata {
   targetFacing: Direction;
 }
 
+// --- Narrative Engine ---
+
+export interface DialogueOption {
+  label: string;
+  nextId: string | null; // null closes dialogue
+}
+
+export interface DialogueNode {
+  id: string;
+  speaker: string;
+  text: string;
+  options: DialogueOption[];
+}
+
+export interface DialogueTree {
+  id: string;
+  nodes: Record<string, DialogueNode>; // Map node ID to Node
+  startNodeId: string;
+}
+
 export interface Tile {
   id: string;
   x: number;
@@ -58,7 +78,8 @@ export interface Tile {
     id: string;
     name: string;
     isHidden?: boolean; // Requires 'Shift' to see
-    dialogue?: string[];
+    dialogue?: string[]; // Simple barks
+    dialogueId?: string; // Complex branching dialogue ID
     itemReward?: Item;
     combatStats?: EnemyStats;
     transition?: TransitionMetadata; // New: Data for zone switching
@@ -117,6 +138,11 @@ export interface CombatState {
   lastInputResult: 'NEUTRAL' | 'SUCCESS' | 'FAIL'; // Visual feedback
 }
 
+export interface ActiveDialogueState {
+  treeId: string;
+  currentNode: DialogueNode;
+}
+
 export interface GameState {
   playerPos: Position;
   playerFacing: Direction;
@@ -130,6 +156,9 @@ export interface GameState {
   combatState: CombatState; // New: Detailed combat sub-state
   activeEnemy: ActiveEnemy | null;
   isTransitioning: boolean; // New: Input lock during scene change
+  isDialogueActive: boolean; // New: Narrative lock
+  activeDialogue: ActiveDialogueState | null; // New: Current conversation
+  interactedEntityIds: string[]; // New: Persistence for looted items/killed enemies
 }
 
 export interface LogEntry {
