@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
-import { GameState, Direction, Position, LogEntry, Tile, InteractableType, TileType } from '../types';
-import { GRID_WIDTH, GRID_HEIGHT, INITIAL_LOG_MESSAGE, generateZone } from '../constants';
+import { GameState, Direction, Position, LogEntry, Tile, InteractableType, TileType, TransitionMetadata } from '../types';
+import { GRID_WIDTH, GRID_HEIGHT, INITIAL_LOG_MESSAGE, loadZoneData } from '../constants';
 
 // Helper to calculate visibility
 const calculateVisibility = (tiles: Tile[], center: Position, radius: number = 2.5): Tile[] => {
@@ -36,11 +36,13 @@ export const useGameEngine = () => {
       credits: 0,
     },
     inventory: [],
-    currentZone: 'Sector-01: Awakening',
+    currentZoneId: 'sector-01',
+    currentZoneName: 'Sector-01: Awakening',
     isShiftActive: false,
     gameLog: [],
     isCombatActive: false,
     activeEnemy: null,
+    isTransitioning: false,
   });
 
   // --- Helpers ---
@@ -62,23 +64,63 @@ export const useGameEngine = () => {
 
   // --- Initialization Effect ---
   useEffect(() => {
-    const initialTiles = generateZone(GRID_WIDTH, GRID_HEIGHT);
-    // Reveal starting area
-    const revealedTiles = calculateVisibility(initialTiles, { x: 2, y: 5 });
+    // Initial load logic
+    const initialZoneId = 'sector-01';
+    const initialTiles = loadZoneData(initialZoneId);
+    const startPos = { x: 2, y: 5 };
+    const revealedTiles = calculateVisibility(initialTiles, startPos);
+    
     setTiles(revealedTiles);
+    setGameState(prev => ({
+        ...prev,
+        currentZoneId: initialZoneId,
+        playerPos: startPos
+    }));
+    
     addLog(INITIAL_LOG_MESSAGE, 'SYSTEM');
   }, [addLog]);
 
   // --- Actions ---
 
   const toggleShift = useCallback(() => {
-    if (gameState.isCombatActive) return;
+    if (gameState.isCombatActive || gameState.isTransitioning) return;
     setGameState(prev => {
       const newState = !prev.isShiftActive;
       addLog(newState ? ">> ETHER SHIFT ACTIVATED <<" : "Shift disengaged. Reality stabilized.", 'SYSTEM');
       return { ...prev, isShiftActive: newState };
     });
-  }, [addLog, gameState.isCombatActive]);
+  }, [addLog, gameState.isCombatActive, gameState.isTransitioning]);
+
+  // --- Zone Transition Logic ---
+
+  const triggerZoneTransition = useCallback((meta: TransitionMetadata) => {
+      if (gameState.isTransitioning) return;
+
+      // 1. Lock Input & Show Transition UI
+      setGameState(prev => ({ ...prev, isTransitioning: true }));
+      addLog(`INITIATING HANDSHAKE: ${meta.targetZoneName}...`, 'SYSTEM');
+
+      // 2. Delay for visual effect (Simulate load/travel time)
+      setTimeout(() => {
+          // 3. Load New Zone Data
+          const newTiles = loadZoneData(meta.targetZoneId);
+          const revealedTiles = calculateVisibility(newTiles, meta.targetPosition);
+
+          // 4. Update State
+          setTiles(revealedTiles);
+          setGameState(prev => ({
+              ...prev,
+              playerPos: meta.targetPosition,
+              playerFacing: meta.targetFacing,
+              currentZoneId: meta.targetZoneId,
+              currentZoneName: meta.targetZoneName,
+              isTransitioning: false // Unlock
+          }));
+
+          addLog(`CONNECTION ESTABLISHED: ${meta.targetZoneName}`, 'SYSTEM');
+      }, 1500);
+
+  }, [gameState.isTransitioning, addLog]);
 
   // --- Combat Logic ---
 
@@ -184,7 +226,7 @@ export const useGameEngine = () => {
 
 
   const handleInteraction = useCallback(() => {
-    if (gameState.isCombatActive) return;
+    if (gameState.isCombatActive || gameState.isTransitioning) return;
 
     const { x, y } = gameState.playerPos;
     // Determine target tile based on facing direction
@@ -199,6 +241,13 @@ export const useGameEngine = () => {
     }
 
     const targetTile = tiles.find(t => t.x === targetX && t.y === targetY);
+
+    // Special Case: Standing ON a gate
+    const standingTile = tiles.find(t => t.x === x && t.y === y);
+    if (standingTile?.interactable?.type === InteractableType.ZONE_GATE && standingTile.interactable.transition) {
+        triggerZoneTransition(standingTile.interactable.transition);
+        return;
+    }
 
     if (!targetTile || !targetTile.interactable) {
       addLog("Nothing interesting here.", 'INFO');
@@ -246,12 +295,16 @@ export const useGameEngine = () => {
                 }
             }));
         }
+    } else if (interactable.type === InteractableType.ZONE_GATE) {
+        if (interactable.transition) {
+            triggerZoneTransition(interactable.transition);
+        }
     }
 
-  }, [gameState.playerPos, gameState.playerFacing, gameState.isShiftActive, gameState.isCombatActive, tiles, addLog]);
+  }, [gameState.playerPos, gameState.playerFacing, gameState.isShiftActive, gameState.isCombatActive, gameState.isTransitioning, tiles, addLog, triggerZoneTransition]);
 
   const movePlayer = useCallback((dx: number, dy: number) => {
-    if (gameState.isCombatActive) return;
+    if (gameState.isCombatActive || gameState.isTransitioning) return;
 
     setGameState(prev => {
       const newX = prev.playerPos.x + dx;
@@ -278,6 +331,16 @@ export const useGameEngine = () => {
       if (dy > 0) newFacing = Direction.DOWN;
       if (dy < 0) newFacing = Direction.UP;
 
+      // Check if we walked ONTO a gate (auto-transition)
+      if (targetTile?.interactable?.type === InteractableType.ZONE_GATE && targetTile.interactable.transition) {
+         // We trigger the transition asynchronously to allow the visual "step" onto the tile first
+         // But for now, let's just call the trigger function inside a small timeout if we want them to 'land'
+         // Or, we call it immediately.
+         setTimeout(() => {
+             triggerZoneTransition(targetTile.interactable!.transition!);
+         }, 100);
+      }
+
       // Update Fog of War (Side Effect in State Update)
       setTiles(currentTiles => calculateVisibility(currentTiles, { x: newX, y: newY }));
 
@@ -287,13 +350,13 @@ export const useGameEngine = () => {
         playerFacing: newFacing
       };
     });
-  }, [tiles, gameState.isCombatActive]);
+  }, [tiles, gameState.isCombatActive, gameState.isTransitioning, triggerZoneTransition]);
 
   // --- Input Handling ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Combat Controls
-      if (gameState.isCombatActive) return; // Combat has its own UI controls for now
+      if (gameState.isCombatActive || gameState.isTransitioning) return; 
 
       // Movement Controls
       switch (e.key) {
@@ -326,7 +389,7 @@ export const useGameEngine = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [movePlayer, toggleShift, handleInteraction, gameState.isCombatActive]);
+  }, [movePlayer, toggleShift, handleInteraction, gameState.isCombatActive, gameState.isTransitioning]);
 
   return {
     tiles,

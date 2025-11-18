@@ -1,7 +1,8 @@
+
 import React from 'react';
 import { GameState, Tile, TileType, InteractableType, Direction } from '../types';
 import { GRID_WIDTH, GRID_HEIGHT } from '../constants';
-import { User, Box, Droplets, BrickWall, Ghost, Sparkles } from 'lucide-react';
+import { User, Box, Droplets, BrickWall, Ghost, DoorOpen } from 'lucide-react';
 
 interface WorldGridProps {
   tiles: Tile[];
@@ -68,6 +69,10 @@ export const WorldGrid: React.FC<WorldGridProps> = ({ tiles, gameState }) => {
                 } else if (tile.interactable.type === InteractableType.ITEM) {
                     Icon = Box;
                     iconColor = gameState.isShiftActive ? "text-cyan-400 animate-bounce" : "text-emerald-500";
+                } else if (tile.interactable.type === InteractableType.ZONE_GATE) {
+                    Icon = DoorOpen;
+                    iconColor = "text-indigo-400 animate-pulse";
+                    bgClass = "bg-indigo-950/50";
                 }
             }
           }

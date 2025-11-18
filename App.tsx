@@ -5,7 +5,7 @@ import { WorldGrid } from './components/WorldGrid';
 import { CombatArena } from './components/CombatArena';
 import { StatusPanel } from './components/HUD/StatusPanel';
 import { LogConsole } from './components/HUD/LogConsole';
-import { Keyboard, Monitor, Cpu } from 'lucide-react';
+import { Keyboard, Monitor, Cpu, Globe } from 'lucide-react';
 
 const App: React.FC = () => {
   const { tiles, gameState, actions } = useGameEngine();
@@ -16,11 +16,23 @@ const App: React.FC = () => {
       {/* CRT Overlay Effects */}
       <div className="pointer-events-none fixed inset-0 z-50 bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] bg-[length:100%_2px,3px_100%] pointer-events-none"></div>
       <div className="pointer-events-none fixed inset-0 z-40 shadow-[inset_0_0_100px_rgba(0,0,0,0.9)]"></div>
-      {gameState.isShiftActive && !gameState.isCombatActive && (
+      {gameState.isShiftActive && !gameState.isCombatActive && !gameState.isTransitioning && (
          <div className="pointer-events-none fixed inset-0 z-30 bg-cyan-500/5 animate-pulse"></div>
       )}
       {gameState.isCombatActive && (
          <div className="pointer-events-none fixed inset-0 z-30 bg-red-900/10 animate-pulse"></div>
+      )}
+
+      {/* Zone Transition Overlay */}
+      {gameState.isTransitioning && (
+        <div className="absolute inset-0 z-[60] bg-slate-950 flex flex-col items-center justify-center gap-4 animate-in fade-in duration-300">
+            <div className="w-full h-1 bg-cyan-500 shadow-[0_0_20px_rgba(34,211,238,0.8)] animate-scanline absolute top-0"></div>
+            <Globe size={64} className="text-cyan-400 animate-spin-slow" />
+            <h2 className="text-2xl font-bold text-cyan-400 tracking-widest animate-pulse">MIGRATING HOST...</h2>
+            <div className="font-mono text-xs text-slate-500">
+                ESTABLISHING HANDSHAKE // {gameState.currentZoneId.toUpperCase()}
+            </div>
+        </div>
       )}
 
       {/* Main Game Container */}
@@ -40,6 +52,7 @@ const App: React.FC = () => {
                     <span>SYS.VISUAL_FEED</span>
                 </div>
                 <div className="flex items-center gap-2 text-xs text-slate-500">
+                    <span className="text-cyan-600 mr-2">[{gameState.currentZoneName.toUpperCase()}]</span>
                     <span className={`${gameState.isCombatActive ? 'text-red-500 font-bold animate-pulse' : ''}`}>
                         STATUS: {gameState.isCombatActive ? '⚠️ COMBAT ENGAGED' : 'NORMAL'}
                     </span>

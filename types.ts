@@ -28,7 +28,8 @@ export enum InteractableType {
   NPC = 'NPC',
   ITEM = 'ITEM',
   SHRINE = 'SHRINE',
-  ENEMY = 'ENEMY'
+  ENEMY = 'ENEMY',
+  ZONE_GATE = 'ZONE_GATE' // New: Portal to another zone
 }
 
 export interface EnemyStats {
@@ -38,6 +39,13 @@ export interface EnemyStats {
   defense: number;
   xpReward: number;
   creditsReward?: number;
+}
+
+export interface TransitionMetadata {
+  targetZoneId: string;
+  targetZoneName: string;
+  targetPosition: Position;
+  targetFacing: Direction;
 }
 
 export interface Tile {
@@ -53,6 +61,7 @@ export interface Tile {
     dialogue?: string[];
     itemReward?: Item;
     combatStats?: EnemyStats;
+    transition?: TransitionMetadata; // New: Data for zone switching
   };
   isRevealed: boolean;
 }
@@ -94,11 +103,13 @@ export interface GameState {
   playerFacing: Direction;
   stats: PlayerStats;
   inventory: Item[];
-  currentZone: string;
-  isShiftActive: boolean; // The core mechanic
+  currentZoneId: string; // New: Tracking ID
+  currentZoneName: string;
+  isShiftActive: boolean; 
   gameLog: LogEntry[];
   isCombatActive: boolean;
   activeEnemy: ActiveEnemy | null;
+  isTransitioning: boolean; // New: Input lock during scene change
 }
 
 export interface LogEntry {
