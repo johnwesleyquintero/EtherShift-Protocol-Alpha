@@ -33,6 +33,7 @@ export const useGameEngine = () => {
       defense: 5,
       level: 1,
       xp: 0,
+      credits: 0,
     },
     inventory: [],
     currentZone: 'Sector-01: Awakening',
@@ -139,16 +140,17 @@ export const useGameEngine = () => {
 
       if (enemyNewHp <= 0) {
           // Victory
-          const xpGain = gameState.activeEnemy.xpReward;
-          addLog(`Target eliminated. Gained ${xpGain} XP.`, 'SYSTEM');
+          const { xpReward, creditsReward, itemReward } = gameState.activeEnemy;
           
-          // Update State: Heal slight HP on win? No, classic RPG.
-          setGameState(prev => ({
-              ...prev,
-              isCombatActive: false,
-              activeEnemy: null,
-              stats: { ...prev.stats, xp: prev.stats.xp + xpGain }
-          }));
+          let logMsg = `Target eliminated. +${xpReward} XP`;
+          if (creditsReward > 0) logMsg += `, +${creditsReward} Credits`;
+          addLog(logMsg, 'SYSTEM');
+          
+          let newInventory = [...gameState.inventory];
+          if (itemReward) {
+              newInventory.push(itemReward);
+              addLog(`LOOT: Retrieved [${itemReward.name}]`, 'INFO');
+          }
 
           // Remove enemy from world
           const enemyTileId = gameState.activeEnemy.id; // We stored tile id here via logic below
@@ -158,6 +160,19 @@ export const useGameEngine = () => {
                  return { ...t, interactable: undefined };
              }
              return t;
+          }));
+
+          // Update State
+          setGameState(prev => ({
+              ...prev,
+              isCombatActive: false,
+              activeEnemy: null,
+              inventory: newInventory,
+              stats: { 
+                  ...prev.stats, 
+                  xp: prev.stats.xp + xpReward,
+                  credits: prev.stats.credits + creditsReward
+              }
           }));
 
       } else {
@@ -225,7 +240,9 @@ export const useGameEngine = () => {
                 activeEnemy: {
                     id: `combat::${interactable.id}`, // store ID to remove later
                     name: interactable.name,
-                    ...interactable.combatStats!
+                    ...interactable.combatStats!,
+                    creditsReward: interactable.combatStats!.creditsReward || 0,
+                    itemReward: interactable.itemReward // Pass loot info to active state
                 }
             }));
         }

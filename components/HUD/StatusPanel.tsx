@@ -1,6 +1,7 @@
+
 import React from 'react';
 import { PlayerStats } from '../../types';
-import { Activity, Zap, Database } from 'lucide-react';
+import { Activity, Zap, Database, Coins } from 'lucide-react';
 
 export const StatusPanel: React.FC<{ stats: PlayerStats; isShiftActive: boolean }> = ({ stats, isShiftActive }) => {
   
@@ -11,7 +12,7 @@ export const StatusPanel: React.FC<{ stats: PlayerStats; isShiftActive: boolean 
         p-4 rounded-lg border-2 mb-4 transition-colors duration-500
         ${isShiftActive ? 'bg-slate-900/80 border-cyan-500/50' : 'bg-slate-900 border-slate-700'}
     `}>
-      <div className="flex justify-between items-end mb-2">
+      <div className="flex justify-between items-end mb-4">
         <h2 className={`font-bold uppercase tracking-widest ${isShiftActive ? 'text-cyan-400' : 'text-slate-200'}`}>
             Operator Status
         </h2>
@@ -31,7 +32,7 @@ export const StatusPanel: React.FC<{ stats: PlayerStats; isShiftActive: boolean 
       </div>
 
       {/* MP (Ether) Bar */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-3 mb-4">
         <div className={`w-6 ${isShiftActive ? 'text-cyan-300' : 'text-amber-400'}`}>
             {isShiftActive ? <Zap size={16} /> : <Database size={16} />}
         </div>
@@ -42,6 +43,15 @@ export const StatusPanel: React.FC<{ stats: PlayerStats; isShiftActive: boolean 
             />
         </div>
         <span className="text-xs font-mono w-12 text-right text-amber-300">{stats.mp}/{stats.maxMp}</span>
+      </div>
+
+      {/* Credits Display */}
+      <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+         <div className="flex items-center gap-2 text-yellow-500">
+            <Coins size={14} />
+            <span className="text-xs font-bold tracking-wider">CREDITS</span>
+         </div>
+         <span className="text-slate-200 font-mono">{stats.credits}</span>
       </div>
     </div>
   );

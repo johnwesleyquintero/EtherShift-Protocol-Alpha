@@ -37,6 +37,7 @@ export interface EnemyStats {
   attack: number;
   defense: number;
   xpReward: number;
+  creditsReward?: number;
 }
 
 export interface Tile {
@@ -74,6 +75,7 @@ export interface PlayerStats {
   defense: number;
   level: number;
   xp: number;
+  credits: number;
 }
 
 export interface ActiveEnemy {
@@ -83,6 +85,8 @@ export interface ActiveEnemy {
   maxHp: number;
   attack: number;
   xpReward: number;
+  creditsReward: number;
+  itemReward?: Item;
 }
 
 export interface GameState {

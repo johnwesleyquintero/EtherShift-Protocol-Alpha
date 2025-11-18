@@ -18,6 +18,12 @@ export const SAMPLE_ITEMS: Record<string, Item> = {
     name: 'Rusty Access Card',
     description: 'Pre-collapse tech. Reads: "Sector 4 Auth".',
     type: 'KEY',
+  },
+  HEALTH_STIM: {
+    id: 'item_stim_01',
+    name: 'Bio-Stim Pack',
+    description: 'Emergency nanobots. Restores HP.',
+    type: 'CONSUMABLE',
   }
 };
 
@@ -78,12 +84,14 @@ export const generateZone = (width: number, height: number): Tile[] => {
           id: 'enemy_glitch_01',
           name: 'Glitch Sentinel',
           isHidden: false,
+          itemReward: SAMPLE_ITEMS.HEALTH_STIM, // Drops this on death
           combatStats: {
             hp: 50,
             maxHp: 50,
             attack: 8,
             defense: 2,
-            xpReward: 25
+            xpReward: 25,
+            creditsReward: 42 // Drops this on death
           }
         };
       }
