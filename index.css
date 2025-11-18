@@ -1,0 +1,20 @@
+/* Custom Scrollbar for the Log Console */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: #0f172a; 
+}
+::-webkit-scrollbar-thumb {
+  background: #1e293b; 
+  border: 1px solid #22d3ee;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #334155; 
+}
+
+body {
+  background-color: #000;
+  color: #e2e8f0;
+  overflow: hidden; /* Prevent scrolling on mobile */
+}
