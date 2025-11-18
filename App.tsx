@@ -61,11 +61,12 @@ const App: React.FC = () => {
             
             {/* The Main View: Switches between Map and Combat */}
             <div className="flex-1 relative">
-                {gameState.isCombatActive ? (
+                {gameState.isCombatActive && gameState.activeEnemy ? (
                     <CombatArena 
                         enemy={gameState.activeEnemy} 
                         playerStats={gameState.stats}
-                        onAction={actions.handleCombatAction}
+                        combatState={gameState.combatState}
+                        onAction={actions.handleCombatUI}
                     />
                 ) : (
                     <WorldGrid tiles={tiles} gameState={gameState} />
@@ -81,7 +82,7 @@ const App: React.FC = () => {
                         <span>E / ENTER: Interact</span>
                     </>
                 ) : (
-                     <span className="text-red-400">COMBAT PROTOCOLS ACTIVE. SELECT ACTION.</span>
+                     <span className="text-red-400">COMBAT PROTOCOLS ACTIVE. EXECUTE RUNES.</span>
                 )}
             </div>
         </div>

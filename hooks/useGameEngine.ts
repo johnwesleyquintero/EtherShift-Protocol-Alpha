@@ -1,7 +1,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
-import { GameState, Direction, Position, LogEntry, Tile, InteractableType, TileType, TransitionMetadata } from '../types';
-import { GRID_WIDTH, GRID_HEIGHT, INITIAL_LOG_MESSAGE, loadZoneData } from '../constants';
+import { GameState, Direction, Position, LogEntry, Tile, InteractableType, TileType, TransitionMetadata, Skill } from '../types';
+import { GRID_WIDTH, GRID_HEIGHT, INITIAL_LOG_MESSAGE, loadZoneData, PLAYER_SKILLS } from '../constants';
 
 // Helper to calculate visibility
 const calculateVisibility = (tiles: Tile[], center: Position, radius: number = 2.5): Tile[] => {
@@ -41,6 +41,12 @@ export const useGameEngine = () => {
     isShiftActive: false,
     gameLog: [],
     isCombatActive: false,
+    combatState: {
+        phase: 'MENU',
+        selectedSkillId: null,
+        inputBuffer: [],
+        lastInputResult: 'NEUTRAL'
+    },
     activeEnemy: null,
     isTransitioning: false,
   });
@@ -124,7 +130,7 @@ export const useGameEngine = () => {
 
   // --- Combat Logic ---
 
-  const resolveCombatTurn = useCallback((enemySurvivorsHp: number, enemyId: string) => {
+  const resolveCombatTurn = useCallback((enemySurvivorsHp: number) => {
       // Enemy Turn
       setGameState(prev => {
           const enemyDamage = Math.max(1, (prev.activeEnemy?.attack || 5) - Math.floor(prev.stats.defense / 2));
@@ -140,90 +146,120 @@ export const useGameEngine = () => {
           return {
               ...prev,
               stats: { ...prev.stats, hp: playerNewHp },
-              activeEnemy: prev.activeEnemy ? { ...prev.activeEnemy, hp: enemySurvivorsHp } : null
+              activeEnemy: prev.activeEnemy ? { ...prev.activeEnemy, hp: enemySurvivorsHp } : null,
+              // Reset to Menu
+              combatState: { ...prev.combatState, phase: 'MENU', inputBuffer: [], lastInputResult: 'NEUTRAL' }
           };
       });
   }, [addLog]);
 
-  const handleCombatAction = useCallback((action: 'ATTACK' | 'SKILL' | 'FLEE') => {
+  const executeCombatAction = useCallback((action: 'ATTACK' | 'FLEE' | 'SKILL_EXECUTE', skill?: Skill) => {
       if (!gameState.activeEnemy) return;
 
       if (action === 'FLEE') {
           addLog("You disengaged from combat.", 'INFO');
-          setGameState(prev => ({ ...prev, isCombatActive: false, activeEnemy: null }));
+          setGameState(prev => ({ 
+              ...prev, 
+              isCombatActive: false, 
+              activeEnemy: null,
+              combatState: { phase: 'MENU', selectedSkillId: null, inputBuffer: [], lastInputResult: 'NEUTRAL' }
+          }));
           return;
       }
 
-      // Player Turn Calculation
+      // Logic for Player Turn
       let damage = 0;
       let mpCost = 0;
+      let healAmount = 0;
+      let actionName = "Attack";
 
       if (action === 'ATTACK') {
           damage = Math.floor(gameState.stats.attack * (0.8 + Math.random() * 0.4)); // +/- 20% variance
-      } else if (action === 'SKILL') {
-          mpCost = 10;
-          if (gameState.stats.mp < mpCost) {
-              addLog("Insufficient Ether (MP)!", 'SYSTEM');
-              return;
+      } else if (action === 'SKILL_EXECUTE' && skill) {
+          actionName = skill.name;
+          mpCost = skill.mpCost;
+          
+          if (skill.type === 'DMG') {
+              damage = Math.floor(gameState.stats.attack * skill.damageScale);
+          } else if (skill.type === 'HEAL') {
+              healAmount = 30; // Flat heal for now
+              damage = 0;
           }
-          damage = Math.floor(gameState.stats.attack * 2.5); // Big damage
-          addLog("You cast 'Code Breaker'!", 'COMBAT');
       }
 
-      // Apply costs
-      setGameState(prev => ({
-          ...prev,
-          stats: { ...prev.stats, mp: prev.stats.mp - mpCost }
-      }));
-
-      // Apply Damage to Enemy
-      const enemyNewHp = gameState.activeEnemy.hp - damage;
-      addLog(`You dealt ${damage} damage to ${gameState.activeEnemy.name}.`, 'COMBAT');
-
-      if (enemyNewHp <= 0) {
-          // Victory
-          const { xpReward, creditsReward, itemReward } = gameState.activeEnemy;
+      // Apply Stats
+      setGameState(prev => {
+          const newMp = prev.stats.mp - mpCost;
+          const newHp = Math.min(prev.stats.maxHp, prev.stats.hp + healAmount);
           
-          let logMsg = `Target eliminated. +${xpReward} XP`;
-          if (creditsReward > 0) logMsg += `, +${creditsReward} Credits`;
-          addLog(logMsg, 'SYSTEM');
-          
-          let newInventory = [...gameState.inventory];
-          if (itemReward) {
-              newInventory.push(itemReward);
-              addLog(`LOOT: Retrieved [${itemReward.name}]`, 'INFO');
+          if (healAmount > 0) {
+              addLog(`System Restore active. Recovered ${healAmount} HP.`, 'SYSTEM');
+          }
+          if (damage > 0) {
+               addLog(`Executed ${actionName} for ${damage} DMG.`, 'COMBAT');
           }
 
-          // Remove enemy from world
-          const enemyTileId = gameState.activeEnemy.id; // We stored tile id here via logic below
-          setTiles(prev => prev.map(t => {
-             // Logic to find the tile with this interactable
-             if (t.interactable?.id === enemyTileId.split('::')[1]) {
-                 return { ...t, interactable: undefined };
-             }
-             return t;
-          }));
+          const enemyNewHp = (prev.activeEnemy?.hp || 0) - damage;
+          
+          if (enemyNewHp <= 0) {
+             // Victory
+             const { xpReward, creditsReward, itemReward } = prev.activeEnemy!;
+             addLog(`Target eliminated. +${xpReward} XP, +${creditsReward} Credits`, 'SYSTEM');
+             
+             if (itemReward) addLog(`LOOT: Retrieved [${itemReward.name}]`, 'INFO');
 
-          // Update State
-          setGameState(prev => ({
+             // Remove Enemy from World
+             const enemyTileId = prev.activeEnemy!.id;
+             setTiles(tPrev => tPrev.map(t => 
+                t.interactable?.id === enemyTileId.split('::')[1] 
+                ? { ...t, interactable: undefined } 
+                : t
+             ));
+
+             return {
+                 ...prev,
+                 isCombatActive: false,
+                 activeEnemy: null,
+                 inventory: itemReward ? [...prev.inventory, itemReward] : prev.inventory,
+                 stats: { ...prev.stats, mp: newMp, hp: newHp, xp: prev.stats.xp + xpReward, credits: prev.stats.credits + creditsReward },
+                 combatState: { phase: 'MENU', selectedSkillId: null, inputBuffer: [], lastInputResult: 'NEUTRAL' }
+             };
+          }
+
+          // If enemy lives, pass to resolve turn
+          setTimeout(() => resolveCombatTurn(enemyNewHp), 1000); // Small delay for pacing
+
+          return {
               ...prev,
-              isCombatActive: false,
-              activeEnemy: null,
-              inventory: newInventory,
-              stats: { 
-                  ...prev.stats, 
-                  xp: prev.stats.xp + xpReward,
-                  credits: prev.stats.credits + creditsReward
-              }
-          }));
-
-      } else {
-          // Trigger Enemy Turn
-          resolveCombatTurn(enemyNewHp, gameState.activeEnemy.id);
-      }
+              stats: { ...prev.stats, mp: newMp, hp: newHp },
+              activeEnemy: { ...prev.activeEnemy!, hp: enemyNewHp }
+          };
+      });
 
   }, [gameState, addLog, resolveCombatTurn]);
 
+  // Public handler for UI clicks
+  const handleCombatUI = (action: 'ATTACK' | 'FLEE' | 'OPEN_SKILLS' | 'CANCEL_SKILL' | 'SELECT_SKILL', skillId?: string) => {
+      if (action === 'OPEN_SKILLS') {
+          setGameState(prev => ({ ...prev, combatState: { ...prev.combatState, phase: 'SKILL_SELECT' } }));
+      } else if (action === 'CANCEL_SKILL') {
+          setGameState(prev => ({ ...prev, combatState: { ...prev.combatState, phase: 'MENU', selectedSkillId: null } }));
+      } else if (action === 'SELECT_SKILL' && skillId) {
+          setGameState(prev => ({ 
+              ...prev, 
+              combatState: { 
+                  ...prev.combatState, 
+                  phase: 'INPUT', 
+                  selectedSkillId: skillId,
+                  inputBuffer: [],
+                  lastInputResult: 'NEUTRAL'
+              } 
+          }));
+          addLog("INITIATING RUNE SEQUENCE...", 'SYSTEM');
+      } else {
+          executeCombatAction(action as any);
+      }
+  };
 
   const handleInteraction = useCallback(() => {
     if (gameState.isCombatActive || gameState.isTransitioning) return;
@@ -286,6 +322,7 @@ export const useGameEngine = () => {
             setGameState(prev => ({
                 ...prev,
                 isCombatActive: true,
+                combatState: { phase: 'MENU', selectedSkillId: null, inputBuffer: [], lastInputResult: 'NEUTRAL' }, // Reset combat state
                 activeEnemy: {
                     id: `combat::${interactable.id}`, // store ID to remove later
                     name: interactable.name,
@@ -334,8 +371,6 @@ export const useGameEngine = () => {
       // Check if we walked ONTO a gate (auto-transition)
       if (targetTile?.interactable?.type === InteractableType.ZONE_GATE && targetTile.interactable.transition) {
          // We trigger the transition asynchronously to allow the visual "step" onto the tile first
-         // But for now, let's just call the trigger function inside a small timeout if we want them to 'land'
-         // Or, we call it immediately.
          setTimeout(() => {
              triggerZoneTransition(targetTile.interactable!.transition!);
          }, 100);
@@ -352,11 +387,81 @@ export const useGameEngine = () => {
     });
   }, [tiles, gameState.isCombatActive, gameState.isTransitioning, triggerZoneTransition]);
 
+  // --- Combat Input Handling (Runes) ---
+  const handleRuneInput = useCallback((dir: Direction) => {
+      if (gameState.combatState.phase !== 'INPUT' || !gameState.combatState.selectedSkillId) return;
+      
+      const skill = Object.values(PLAYER_SKILLS).find(s => s.id === gameState.combatState.selectedSkillId);
+      if (!skill) return;
+
+      setGameState(prev => {
+          const currentBuffer = [...prev.combatState.inputBuffer, dir];
+          const currentIndex = currentBuffer.length - 1;
+          
+          // Validate current key against target sequence
+          if (skill.sequence[currentIndex] !== dir) {
+              // Mistake!
+              addLog("RUNE SEQUENCE FAILED. REBOOTING...", 'COMBAT');
+              return {
+                  ...prev,
+                  combatState: { 
+                      ...prev.combatState, 
+                      inputBuffer: [], // Reset buffer
+                      lastInputResult: 'FAIL'
+                  }
+              };
+          }
+
+          // Correct Key
+          if (currentBuffer.length === skill.sequence.length) {
+              // Sequence Complete!
+              // We execute the skill after a tiny delay for visual feedback
+              setTimeout(() => executeCombatAction('SKILL_EXECUTE', skill), 300);
+              
+              return {
+                  ...prev,
+                  combatState: {
+                      ...prev.combatState,
+                      inputBuffer: currentBuffer,
+                      lastInputResult: 'SUCCESS'
+                  }
+              };
+          }
+
+          // Sequence In Progress
+          return {
+              ...prev,
+              combatState: {
+                  ...prev.combatState,
+                  inputBuffer: currentBuffer,
+                  lastInputResult: 'NEUTRAL'
+              }
+          };
+      });
+
+  }, [gameState.combatState, addLog, executeCombatAction]);
+
+
   // --- Input Handling ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Combat Controls
-      if (gameState.isCombatActive || gameState.isTransitioning) return; 
+      
+      // Combat Controls - Rune Input
+      if (gameState.isCombatActive) {
+          if (gameState.combatState.phase === 'INPUT') {
+              e.preventDefault();
+              switch (e.key) {
+                  case 'w': case 'ArrowUp': handleRuneInput(Direction.UP); break;
+                  case 's': case 'ArrowDown': handleRuneInput(Direction.DOWN); break;
+                  case 'a': case 'ArrowLeft': handleRuneInput(Direction.LEFT); break;
+                  case 'd': case 'ArrowRight': handleRuneInput(Direction.RIGHT); break;
+                  case 'Escape': handleCombatUI('CANCEL_SKILL'); break;
+              }
+          }
+          return; // Block movement if in combat
+      }
+
+      if (gameState.isTransitioning) return; 
 
       // Movement Controls
       switch (e.key) {
@@ -389,7 +494,7 @@ export const useGameEngine = () => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [movePlayer, toggleShift, handleInteraction, gameState.isCombatActive, gameState.isTransitioning]);
+  }, [movePlayer, toggleShift, handleInteraction, gameState.isCombatActive, gameState.combatState, gameState.isTransitioning, handleRuneInput]);
 
   return {
     tiles,
@@ -398,7 +503,7 @@ export const useGameEngine = () => {
         movePlayer,
         toggleShift,
         handleInteraction,
-        handleCombatAction
+        handleCombatUI
     }
   };
 };

@@ -1,5 +1,5 @@
 
-import { Item, Tile, TileType, InteractableType, Direction } from './types';
+import { Item, Tile, TileType, InteractableType, Direction, Skill } from './types';
 
 export const GRID_WIDTH = 12;
 export const GRID_HEIGHT = 10;
@@ -30,6 +30,38 @@ export const SAMPLE_ITEMS: Record<string, Item> = {
     name: 'Encrypted Drive',
     description: 'Contains fragments of the old world code.',
     type: 'ARTIFACT',
+  }
+};
+
+// --- Skills Database ---
+
+export const PLAYER_SKILLS: Record<string, Skill> = {
+  CODE_BREAKER: {
+    id: 'skill_code_break',
+    name: 'Code Breaker',
+    description: 'Disrupts enemy logic gates. Heavy DMG.',
+    mpCost: 10,
+    damageScale: 2.5,
+    sequence: [Direction.UP, Direction.DOWN, Direction.UP],
+    type: 'DMG'
+  },
+  PACKET_STORM: {
+    id: 'skill_packet_storm',
+    name: 'Packet Storm',
+    description: 'Overwhelms target with data. Rapid hits.',
+    mpCost: 15,
+    damageScale: 1.8,
+    sequence: [Direction.LEFT, Direction.RIGHT, Direction.LEFT, Direction.RIGHT],
+    type: 'DMG'
+  },
+  SYS_RESTORE: {
+    id: 'skill_sys_restore',
+    name: 'Sys.Restore',
+    description: 'Reverts physical damage. Heals HP.',
+    mpCost: 20,
+    damageScale: 0, // Healing handled separately
+    sequence: [Direction.DOWN, Direction.DOWN, Direction.UP],
+    type: 'HEAL'
   }
 };
 

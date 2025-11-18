@@ -75,6 +75,16 @@ export interface Item {
   type: 'KEY' | 'CONSUMABLE' | 'ARTIFACT';
 }
 
+export interface Skill {
+  id: string;
+  name: string;
+  description: string;
+  mpCost: number;
+  sequence: Direction[]; // The Rune input sequence
+  damageScale: number; // Multiplier of base attack
+  type: 'DMG' | 'HEAL' | 'BUFF';
+}
+
 export interface PlayerStats {
   hp: number;
   maxHp: number;
@@ -98,6 +108,15 @@ export interface ActiveEnemy {
   itemReward?: Item;
 }
 
+export type CombatPhase = 'MENU' | 'SKILL_SELECT' | 'INPUT';
+
+export interface CombatState {
+  phase: CombatPhase;
+  selectedSkillId: string | null;
+  inputBuffer: Direction[]; // Tracks what user has typed
+  lastInputResult: 'NEUTRAL' | 'SUCCESS' | 'FAIL'; // Visual feedback
+}
+
 export interface GameState {
   playerPos: Position;
   playerFacing: Direction;
@@ -108,6 +127,7 @@ export interface GameState {
   isShiftActive: boolean; 
   gameLog: LogEntry[];
   isCombatActive: boolean;
+  combatState: CombatState; // New: Detailed combat sub-state
   activeEnemy: ActiveEnemy | null;
   isTransitioning: boolean; // New: Input lock during scene change
 }
