@@ -6,7 +6,7 @@ import { CombatArena } from './components/CombatArena';
 import { StatusPanel } from './components/HUD/StatusPanel';
 import { LogConsole } from './components/HUD/LogConsole';
 import { DialogueOverlay } from './components/HUD/DialogueOverlay';
-import { Keyboard, Monitor, Cpu, Globe } from 'lucide-react';
+import { Keyboard, Monitor, Cpu, Globe, Skull, RotateCcw, Trash2 } from 'lucide-react';
 
 const App: React.FC = () => {
   const { tiles, gameState, actions } = useGameEngine();
@@ -20,7 +20,7 @@ const App: React.FC = () => {
       {gameState.isShiftActive && !gameState.isCombatActive && !gameState.isTransitioning && !gameState.isDialogueActive && (
          <div className="pointer-events-none fixed inset-0 z-30 bg-cyan-500/5 animate-pulse"></div>
       )}
-      {gameState.isCombatActive && (
+      {gameState.isCombatActive && !gameState.isGameOver && (
          <div className="pointer-events-none fixed inset-0 z-30 bg-red-900/10 animate-pulse"></div>
       )}
 
@@ -36,6 +36,36 @@ const App: React.FC = () => {
         </div>
       )}
 
+      {/* GAME OVER OVERLAY */}
+      {gameState.isGameOver && (
+        <div className="absolute inset-0 z-[70] bg-red-950/90 backdrop-blur-sm flex flex-col items-center justify-center gap-8 animate-in zoom-in duration-500">
+             <Skull size={80} className="text-red-500 animate-bounce" />
+             <div className="text-center space-y-2">
+                 <h1 className="text-4xl md:text-6xl font-black text-red-500 tracking-tighter drop-shadow-[0_0_15px_rgba(239,68,68,0.8)]">
+                     CRITICAL FAILURE
+                 </h1>
+                 <p className="text-red-300 font-mono tracking-widest">SYSTEM INTEGRITY COMPROMISED</p>
+             </div>
+             
+             <div className="flex gap-4 mt-4">
+                 <button 
+                    onClick={actions.system.loadGame}
+                    className="flex items-center gap-2 px-6 py-3 bg-slate-900 border border-red-500 text-red-400 hover:bg-red-900 hover:text-white transition-all rounded uppercase font-bold tracking-wider"
+                 >
+                     <RotateCcw size={18} />
+                     Reboot System
+                 </button>
+                 <button 
+                    onClick={actions.system.resetGame}
+                    className="flex items-center gap-2 px-6 py-3 bg-slate-900 border border-slate-600 text-slate-400 hover:bg-slate-800 hover:border-slate-400 transition-all rounded uppercase font-bold tracking-wider"
+                 >
+                     <Trash2 size={18} />
+                     Format Drive
+                 </button>
+             </div>
+        </div>
+      )}
+
       {/* Narrative Overlay */}
       {gameState.isDialogueActive && gameState.activeDialogue && (
         <DialogueOverlay 
@@ -45,7 +75,7 @@ const App: React.FC = () => {
       )}
 
       {/* Main Game Container */}
-      <main className="relative z-10 w-full max-w-5xl grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <main className={`relative z-10 w-full max-w-5xl grid grid-cols-1 lg:grid-cols-12 gap-6 ${gameState.isGameOver ? 'blur-sm grayscale opacity-50 pointer-events-none' : ''}`}>
         
         {/* Header / Title Mobile */}
         <div className="lg:hidden col-span-1 mb-2">

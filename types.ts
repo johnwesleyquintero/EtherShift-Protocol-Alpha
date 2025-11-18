@@ -159,6 +159,7 @@ export interface GameState {
   isDialogueActive: boolean; // New: Narrative lock
   activeDialogue: ActiveDialogueState | null; // New: Current conversation
   interactedEntityIds: string[]; // New: Persistence for looted items/killed enemies
+  isGameOver: boolean; // New: Critical failure state
 }
 
 export interface LogEntry {
