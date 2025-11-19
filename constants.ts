@@ -6,6 +6,15 @@ export const GRID_HEIGHT = 10;
 
 export const INITIAL_LOG_MESSAGE = "System Online. Neural link established. Welcome back, Architect.";
 
+// --- Audio Assets ---
+
+export const AUDIO_SOURCES = {
+  INTRO: '/soundtrack/advance_scout.mp3',
+  // Future tracks can be added here, e.g.:
+  // COMBAT: '/soundtrack/battle_protocol.mp3',
+  // SFX_SHIFT: '/soundtrack/sfx_shift.mp3'
+};
+
 export const SAMPLE_ITEMS: Record<string, Item> = {
   ETHER_SHARD: {
     id: 'item_shard_01',

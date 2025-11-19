@@ -1,15 +1,31 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGameEngine } from './hooks/useGameEngine';
+import { useAudio } from './hooks/useAudio';
 import { WorldGrid } from './components/WorldGrid';
 import { CombatArena } from './components/CombatArena';
 import { StatusPanel } from './components/HUD/StatusPanel';
 import { LogConsole } from './components/HUD/LogConsole';
 import { DialogueOverlay } from './components/HUD/DialogueOverlay';
-import { Keyboard, Monitor, Cpu, Globe, Skull, RotateCcw, Trash2, MousePointerClick } from 'lucide-react';
+import { Keyboard, Monitor, Cpu, Globe, Skull, RotateCcw, Trash2, MousePointerClick, Power } from 'lucide-react';
 
 const App: React.FC = () => {
   const { tiles, gameState, actions } = useGameEngine();
+  const { playTrack, stop, toggleMute, isMuted } = useAudio();
+  const [systemInitialized, setSystemInitialized] = useState(false);
+
+  // Audio Logic Controller
+  useEffect(() => {
+      if (systemInitialized) {
+          // For now, we loop the INTRO track as the main theme.
+          // In the future, we can switch based on gameState.isCombatActive
+          playTrack('INTRO');
+      }
+  }, [systemInitialized, playTrack]);
+
+  const handleInitialize = () => {
+      setSystemInitialized(true);
+  };
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-200 font-mono selection:bg-cyan-900 selection:text-white flex items-center justify-center p-4 lg:p-8 overflow-hidden relative">
@@ -22,6 +38,33 @@ const App: React.FC = () => {
       )}
       {gameState.isCombatActive && !gameState.isGameOver && (
          <div className="pointer-events-none fixed inset-0 z-30 bg-red-900/10 animate-pulse"></div>
+      )}
+
+      {/* BOOT SEQUENCE (Start Screen for Audio Permissions) */}
+      {!systemInitialized && (
+          <div className="absolute inset-0 z-[100] bg-slate-950 flex flex-col items-center justify-center p-4">
+              <div className="max-w-md w-full space-y-6 text-center">
+                  <div className="text-cyan-500 font-bold tracking-[0.3em] text-2xl animate-pulse">
+                      ETHER<span className="text-white">SHIFT</span>
+                  </div>
+                  <div className="space-y-1 text-xs font-mono text-slate-500 text-left border border-slate-800 p-4 bg-black/50 rounded">
+                      <div>> DETECTING HARDWARE... OK</div>
+                      <div>> CHECKING MEMORY... OK</div>
+                      <div>> LOADING AUDIO DRIVERS... PENDING</div>
+                      <div className="animate-pulse text-cyan-400">> WAITING FOR OPERATOR INPUT_</div>
+                  </div>
+                  <button 
+                    onClick={handleInitialize}
+                    className="group relative px-8 py-4 bg-cyan-900/20 border border-cyan-500/50 hover:bg-cyan-500/20 hover:border-cyan-400 transition-all rounded w-full"
+                  >
+                      <div className="flex items-center justify-center gap-3">
+                          <Power size={20} className="text-cyan-400 group-hover:scale-110 transition-transform" />
+                          <span className="text-cyan-100 font-bold tracking-widest uppercase group-hover:text-white">Initialize System</span>
+                      </div>
+                      <div className="absolute inset-0 bg-cyan-400/10 blur-xl opacity-0 group-hover:opacity-100 transition-opacity"></div>
+                  </button>
+              </div>
+          </div>
       )}
 
       {/* Zone Transition Overlay */}
@@ -140,6 +183,8 @@ const App: React.FC = () => {
             <StatusPanel 
                 stats={gameState.stats} 
                 isShiftActive={gameState.isShiftActive} 
+                isMuted={isMuted}
+                onToggleMute={toggleMute}
                 systemActions={actions.system} 
             />
 

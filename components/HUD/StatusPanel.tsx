@@ -1,11 +1,13 @@
 
 import React from 'react';
 import { PlayerStats } from '../../types';
-import { Activity, Zap, Database, Coins, Save, Download, Trash2 } from 'lucide-react';
+import { Activity, Zap, Database, Coins, Save, Download, Trash2, Volume2, VolumeX } from 'lucide-react';
 
 interface StatusPanelProps {
     stats: PlayerStats;
     isShiftActive: boolean;
+    isMuted: boolean;
+    onToggleMute: () => void;
     systemActions?: {
         saveGame: () => void;
         loadGame: () => void;
@@ -13,7 +15,7 @@ interface StatusPanelProps {
     }
 }
 
-export const StatusPanel: React.FC<StatusPanelProps> = ({ stats, isShiftActive, systemActions }) => {
+export const StatusPanel: React.FC<StatusPanelProps> = ({ stats, isShiftActive, isMuted, onToggleMute, systemActions }) => {
   
   const getBarWidth = (current: number, max: number) => `${(current / max) * 100}%`;
 
@@ -26,7 +28,16 @@ export const StatusPanel: React.FC<StatusPanelProps> = ({ stats, isShiftActive, 
         <h2 className={`font-bold uppercase tracking-widest ${isShiftActive ? 'text-cyan-400' : 'text-slate-200'}`}>
             Operator Status
         </h2>
-        <span className="text-xs text-slate-500 font-mono">LVL {stats.level} // XP: {stats.xp}</span>
+        <div className="flex items-center gap-3">
+            <button 
+                onClick={onToggleMute}
+                className="text-slate-500 hover:text-cyan-400 transition-colors"
+                title={isMuted ? "Unmute Audio" : "Mute Audio"}
+            >
+                {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
+            </button>
+            <span className="text-xs text-slate-500 font-mono">LVL {stats.level} // XP: {stats.xp}</span>
+        </div>
       </div>
 
       {/* HP Bar */}
