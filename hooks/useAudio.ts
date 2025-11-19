@@ -68,7 +68,14 @@ export const useAudio = () => {
             setIsPlaying(true);
         })
         .catch(error => {
-            console.warn("[Audio System] Autoplay prevented. Waiting for interaction.", error);
+            // Differentiate between Autoplay blocks and loading errors
+            if (error.name === 'NotAllowedError') {
+                console.warn("[Audio System] Autoplay prevented. Waiting for user interaction.");
+            } else if (error.name === 'NotSupportedError') {
+                console.error("[Audio System] Audio source not supported or file missing.");
+            } else {
+                console.error("[Audio System] Playback error:", error);
+            }
             setIsPlaying(false);
         });
     }
