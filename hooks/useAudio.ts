@@ -17,8 +17,12 @@ export const useAudio = () => {
       
       // Debugging listeners
       audio.addEventListener('error', (e) => {
-        console.error("Audio Error: Failed to load resource.", audio.error);
-        console.error("Attempted Source:", audio.src);
+        const err = audio.error;
+        console.error("Audio Error:", err ? `Code: ${err.code}, Message: ${err.message}` : "Unknown Error");
+        
+        // Truncate source log if it's a data URI to avoid spamming console
+        const srcDisplay = audio.src.length > 50 ? audio.src.substring(0, 50) + '...' : audio.src;
+        console.error("Attempted Source:", srcDisplay);
       });
       
       audioRef.current = audio;
@@ -48,7 +52,7 @@ export const useAudio = () => {
     const audio = getAudioInstance();
     const src = AUDIO_SOURCES[trackKey];
     
-    console.log(`[Audio System] Attempting to play: ${src}`);
+    console.log(`[Audio System] Attempting to play: ${trackKey}`);
 
     // If already playing this track, just ensure it's playing
     if (audio.src.includes(src) && !audio.paused) return;
