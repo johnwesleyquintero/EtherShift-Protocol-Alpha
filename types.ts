@@ -129,7 +129,7 @@ export interface ActiveEnemy {
   itemReward?: Item;
 }
 
-export type CombatPhase = 'MENU' | 'SKILL_SELECT' | 'INPUT';
+export type CombatPhase = 'MENU' | 'SKILL_SELECT' | 'INPUT' | 'WAITING';
 
 export interface CombatState {
   phase: CombatPhase;

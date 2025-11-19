@@ -1,6 +1,6 @@
 
 import { useState, useEffect, useCallback } from 'react';
-import { GameState, Direction, Position, LogEntry, Tile, InteractableType, TileType, TransitionMetadata, Skill } from '../types';
+import { GameState, Direction, Position, LogEntry, Tile, InteractableType, TileType, TransitionMetadata, Skill, Item } from '../types';
 import { GRID_WIDTH, GRID_HEIGHT, INITIAL_LOG_MESSAGE, loadZoneData, PLAYER_SKILLS, DIALOGUE_DB } from '../constants';
 
 const SAVE_KEY = 'ethershift_save_protocol_alpha';
@@ -167,6 +167,95 @@ export const useGameEngine = () => {
     });
   }, [addLog, gameState.isCombatActive, gameState.isTransitioning, gameState.isDialogueActive, gameState.isGameOver]);
 
+  // --- Combat Logic: Resolve Turn ---
+  
+  const resolveCombatTurn = useCallback((enemySurvivorsHp: number, enemyId: string) => {
+      // Enemy Turn
+      setGameState(prev => {
+          // SAFETY CHECK: If combat ended (fled/died) OR if the enemy ID doesn't match (race condition), abort.
+          if (!prev.isCombatActive || !prev.activeEnemy || prev.activeEnemy.id !== enemyId) return prev;
+
+          const enemyDamage = Math.max(1, (prev.activeEnemy?.attack || 5) - Math.floor(prev.stats.defense / 2));
+          const playerNewHp = Math.max(0, prev.stats.hp - enemyDamage);
+
+          addLog(`${prev.activeEnemy?.name} strikes! You take ${enemyDamage} DMG.`, 'COMBAT');
+
+          if (playerNewHp <= 0) {
+              addLog("CRITICAL FAILURE. INTEGRITY COMPROMISED.", 'SYSTEM');
+              return {
+                  ...prev,
+                  stats: { ...prev.stats, hp: 0 },
+                  isGameOver: true,
+                  isCombatActive: false // Technically combat is over because you lost
+              };
+          }
+
+          return {
+              ...prev,
+              stats: { ...prev.stats, hp: playerNewHp },
+              activeEnemy: prev.activeEnemy ? { ...prev.activeEnemy, hp: enemySurvivorsHp } : null,
+              // Reset to Menu
+              combatState: { ...prev.combatState, phase: 'MENU', inputBuffer: [], lastInputResult: 'NEUTRAL' }
+          };
+      });
+  }, [addLog]);
+
+  // --- Inventory Management ---
+
+  const consumeItem = useCallback((item: Item) => {
+      if (gameState.isTransitioning || gameState.isGameOver) {
+          addLog("Cannot use items during this protocol.", 'SYSTEM');
+          return;
+      }
+      
+      if (gameState.isCombatActive && gameState.combatState.phase === 'WAITING') {
+          return; // Prevent double usage during enemy turn
+      }
+
+      if (item.type !== 'CONSUMABLE') {
+          addLog(`Item [${item.name}] is not consumable.`, 'INFO');
+          return;
+      }
+
+      setGameState(prev => {
+          // Remove 1 instance of the item
+          const index = prev.inventory.findIndex(i => i.id === item.id);
+          if (index === -1) return prev;
+
+          const newInventory = [...prev.inventory];
+          newInventory.splice(index, 1);
+
+          // Apply Effects
+          let hpRestored = 0;
+          if (item.id === 'item_stim_01') {
+              hpRestored = 40;
+          }
+
+          const newHp = Math.min(prev.stats.maxHp, prev.stats.hp + hpRestored);
+          
+          addLog(`Consumed [${item.name}]. Systems repaired (+${hpRestored} HP).`, 'SYSTEM');
+
+          // If in combat, this consumes a turn
+          if (prev.isCombatActive && prev.activeEnemy) {
+              const enemyId = prev.activeEnemy.id;
+              setTimeout(() => resolveCombatTurn(prev.activeEnemy!.hp, enemyId), 1000);
+              return {
+                  ...prev,
+                  stats: { ...prev.stats, hp: newHp },
+                  inventory: newInventory,
+                  combatState: { ...prev.combatState, phase: 'WAITING' } // Lock input
+              };
+          }
+
+          return {
+              ...prev,
+              stats: { ...prev.stats, hp: newHp },
+              inventory: newInventory
+          };
+      });
+  }, [addLog, gameState.isTransitioning, gameState.isGameOver, gameState.isCombatActive, gameState.combatState.phase, resolveCombatTurn]);
+
+
   // --- Zone Transition Logic ---
 
   const triggerZoneTransition = useCallback((meta: TransitionMetadata) => {
@@ -237,38 +326,11 @@ export const useGameEngine = () => {
     });
   }, []);
 
-  // --- Combat Logic ---
-
-  const resolveCombatTurn = useCallback((enemySurvivorsHp: number) => {
-      // Enemy Turn
-      setGameState(prev => {
-          const enemyDamage = Math.max(1, (prev.activeEnemy?.attack || 5) - Math.floor(prev.stats.defense / 2));
-          const playerNewHp = Math.max(0, prev.stats.hp - enemyDamage);
-
-          addLog(`${prev.activeEnemy?.name} strikes! You take ${enemyDamage} DMG.`, 'COMBAT');
-
-          if (playerNewHp <= 0) {
-              addLog("CRITICAL FAILURE. INTEGRITY COMPROMISED.", 'SYSTEM');
-              return {
-                  ...prev,
-                  stats: { ...prev.stats, hp: 0 },
-                  isGameOver: true,
-                  isCombatActive: false // Technically combat is over because you lost
-              };
-          }
-
-          return {
-              ...prev,
-              stats: { ...prev.stats, hp: playerNewHp },
-              activeEnemy: prev.activeEnemy ? { ...prev.activeEnemy, hp: enemySurvivorsHp } : null,
-              // Reset to Menu
-              combatState: { ...prev.combatState, phase: 'MENU', inputBuffer: [], lastInputResult: 'NEUTRAL' }
-          };
-      });
-  }, [addLog]);
+  // --- Combat Logic: Player Turn ---
 
   const executeCombatAction = useCallback((action: 'ATTACK' | 'FLEE' | 'SKILL_EXECUTE', skill?: Skill) => {
       if (!gameState.activeEnemy) return;
+      if (gameState.combatState.phase === 'WAITING') return; // Prevent input spam
 
       if (action === 'FLEE') {
           addLog("You disengaged from combat.", 'INFO');
@@ -314,6 +376,7 @@ export const useGameEngine = () => {
           }
 
           const enemyNewHp = (prev.activeEnemy?.hp || 0) - damage;
+          const enemyId = prev.activeEnemy!.id;
           
           if (enemyNewHp <= 0) {
              // Victory
@@ -363,21 +426,24 @@ export const useGameEngine = () => {
              };
           }
 
-          // If enemy lives, pass to resolve turn
-          setTimeout(() => resolveCombatTurn(enemyNewHp), 1000); // Small delay for pacing
+          // If enemy lives, pass to resolve turn. 
+          // Trigger timeout for enemy counter-attack and LOCK INPUT
+          setTimeout(() => resolveCombatTurn(enemyNewHp, enemyId), 1000); 
 
           return {
               ...prev,
               stats: { ...prev.stats, mp: newMp, hp: newHp },
-              activeEnemy: { ...prev.activeEnemy!, hp: enemyNewHp }
+              activeEnemy: { ...prev.activeEnemy!, hp: enemyNewHp },
+              combatState: { ...prev.combatState, phase: 'WAITING' } // Lock input
           };
       });
 
-  }, [gameState, addLog, resolveCombatTurn]);
+  }, [gameState.activeEnemy, gameState.stats, gameState.combatState.phase, addLog, resolveCombatTurn]);
 
   // Public handler for UI clicks
   const handleCombatUI = (action: 'ATTACK' | 'FLEE' | 'OPEN_SKILLS' | 'CANCEL_SKILL' | 'SELECT_SKILL', skillId?: string) => {
       if (gameState.isGameOver) return;
+      if (gameState.combatState.phase === 'WAITING') return;
 
       if (action === 'OPEN_SKILLS') {
           setGameState(prev => ({ ...prev, combatState: { ...prev.combatState, phase: 'SKILL_SELECT' } }));
@@ -678,6 +744,7 @@ export const useGameEngine = () => {
     actions: {
         movePlayer,
         toggleShift,
+        consumeItem,
         handleInteraction,
         handleCombatUI,
         selectDialogueOption,

@@ -6,7 +6,7 @@ import { CombatArena } from './components/CombatArena';
 import { StatusPanel } from './components/HUD/StatusPanel';
 import { LogConsole } from './components/HUD/LogConsole';
 import { DialogueOverlay } from './components/HUD/DialogueOverlay';
-import { Keyboard, Monitor, Cpu, Globe, Skull, RotateCcw, Trash2 } from 'lucide-react';
+import { Keyboard, Monitor, Cpu, Globe, Skull, RotateCcw, Trash2, MousePointerClick } from 'lucide-react';
 
 const App: React.FC = () => {
   const { tiles, gameState, actions } = useGameEngine();
@@ -151,18 +151,40 @@ const App: React.FC = () => {
                 <LogConsole logs={gameState.gameLog} />
             </div>
 
-            {/* Inventory Summary (Simple List for Proto) */}
+            {/* Inventory Summary */}
             <div className="mt-4 bg-slate-900/50 border border-slate-800 rounded p-3">
-                <h3 className="text-xs text-slate-400 uppercase mb-2 border-b border-slate-800 pb-1">Inventory Storage</h3>
+                <div className="flex justify-between items-center border-b border-slate-800 pb-1 mb-2">
+                    <h3 className="text-xs text-slate-400 uppercase">Inventory Storage</h3>
+                    <MousePointerClick size={12} className="text-slate-600" />
+                </div>
+                
                 <div className="flex flex-wrap gap-2">
                     {gameState.inventory.length === 0 ? (
                         <span className="text-slate-700 text-xs">Empty...</span>
                     ) : (
-                        gameState.inventory.map((item, idx) => (
-                            <div key={idx} className="px-2 py-1 bg-slate-800 rounded text-xs text-slate-300 border border-slate-700">
-                                {item.name}
-                            </div>
-                        ))
+                        gameState.inventory.map((item, idx) => {
+                            const isConsumable = item.type === 'CONSUMABLE';
+                            const isBusy = gameState.isTransitioning || (gameState.isCombatActive && gameState.combatState.phase === 'WAITING');
+                            return (
+                                <button 
+                                    key={idx} 
+                                    onClick={() => isConsumable && actions.consumeItem(item)}
+                                    disabled={!isConsumable || isBusy}
+                                    className={`
+                                        px-2 py-1 rounded text-xs border transition-all flex items-center gap-1
+                                        ${isConsumable 
+                                            ? 'bg-emerald-900/30 border-emerald-700 text-emerald-400 hover:bg-emerald-800 hover:border-emerald-500 cursor-pointer' 
+                                            : 'bg-slate-800 border-slate-700 text-slate-400 cursor-default'
+                                        }
+                                        ${isBusy ? 'opacity-50 cursor-not-allowed' : ''}
+                                    `}
+                                    title={isConsumable ? "Click to Consume" : item.description}
+                                >
+                                    {item.name}
+                                    {isConsumable && <span className="text-[10px] opacity-50 ml-1">(USE)</span>}
+                                </button>
+                            )
+                        })
                     )}
                 </div>
             </div>

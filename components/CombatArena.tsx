@@ -2,7 +2,7 @@
 import React from 'react';
 import { ActiveEnemy, PlayerStats, CombatState, Direction } from '../types';
 import { PLAYER_SKILLS } from '../constants';
-import { Bug, User, Sword, Zap, Wind, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, CornerDownLeft } from 'lucide-react';
+import { Bug, User, Sword, Zap, Wind, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, CornerDownLeft, Clock } from 'lucide-react';
 
 interface CombatArenaProps {
     enemy: ActiveEnemy;
@@ -88,6 +88,11 @@ export const CombatArena: React.FC<CombatArenaProps> = ({ enemy, playerStats, co
                    <div className="text-xs text-slate-500 font-mono">
                        [USE ARROW KEYS OR WASD]
                    </div>
+               </div>
+          ) : combatState.phase === 'WAITING' ? (
+               <div className="flex flex-col items-center gap-2 text-red-400 animate-pulse">
+                   <Clock size={48} />
+                   <span className="text-xs font-bold tracking-widest">ENEMY TURN...</span>
                </div>
           ) : (
             <div className="text-4xl font-black text-slate-800 italic select-none opacity-50 animate-pulse">VS</div>
