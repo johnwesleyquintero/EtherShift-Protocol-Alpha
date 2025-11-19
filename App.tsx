@@ -42,10 +42,10 @@ const App: React.FC = () => {
                       ETHER<span className="text-white">SHIFT</span>
                   </div>
                   <div className="space-y-1 text-xs font-mono text-slate-500 text-left border border-slate-800 p-4 bg-black/50 rounded">
-                      <div>> DETECTING HARDWARE... OK</div>
-                      <div>> CHECKING MEMORY... OK</div>
-                      <div>> LOADING AUDIO DRIVERS... PENDING</div>
-                      <div className="animate-pulse text-cyan-400">> WAITING FOR OPERATOR INPUT_</div>
+                      <div>&gt; DETECTING HARDWARE... OK</div>
+                      <div>&gt; CHECKING MEMORY... OK</div>
+                      <div>&gt; LOADING AUDIO DRIVERS... PENDING</div>
+                      <div className="animate-pulse text-cyan-400">&gt; WAITING FOR OPERATOR INPUT_</div>
                   </div>
                   <button 
                     onClick={handleInitialize}
