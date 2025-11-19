@@ -5,47 +5,74 @@ import { AUDIO_SOURCES } from '../constants';
 export const useAudio = () => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isMuted, setIsMuted] = useState(false);
-  const [volume, setVolume] = useState(0.3); // Default to 30% volume for background ambience
+  const [volume] = useState(0.3); // Default to 30% volume for background ambience
   const [isPlaying, setIsPlaying] = useState(false);
 
-  // Initialize Audio Element
-  useEffect(() => {
-    const audio = new Audio();
-    audio.loop = true;
-    audio.volume = volume;
-    audioRef.current = audio;
+  // Helper to safely get or create the audio instance
+  const getAudioInstance = useCallback(() => {
+    if (!audioRef.current) {
+      const audio = new Audio();
+      audio.loop = true;
+      audio.volume = isMuted ? 0 : volume;
+      
+      // Debugging listeners
+      audio.addEventListener('error', (e) => {
+        console.error("Audio Error: Failed to load resource.", audio.error);
+        console.error("Attempted Source:", audio.src);
+      });
+      
+      audioRef.current = audio;
+    }
+    return audioRef.current;
+  }, [isMuted, volume]);
 
-    return () => {
-      audio.pause();
-      audioRef.current = null;
-    };
-  }, []);
-
-  // Handle Volume/Mute changes
+  // Handle Volume/Mute changes dynamically
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = isMuted ? 0 : volume;
+    const audio = audioRef.current;
+    if (audio) {
+      audio.volume = isMuted ? 0 : volume;
     }
   }, [isMuted, volume]);
 
-  const playTrack = useCallback((trackKey: keyof typeof AUDIO_SOURCES) => {
-    if (!audioRef.current) return;
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+    };
+  }, []);
 
+  const playTrack = useCallback((trackKey: keyof typeof AUDIO_SOURCES) => {
+    const audio = getAudioInstance();
     const src = AUDIO_SOURCES[trackKey];
     
-    // Don't restart if already playing this track
-    if (audioRef.current.src.includes(src) && !audioRef.current.paused) return;
+    console.log(`[Audio System] Attempting to play: ${src}`);
 
-    audioRef.current.src = src;
+    // If already playing this track, just ensure it's playing
+    if (audio.src.includes(src) && !audio.paused) return;
+
+    // If changing tracks or starting fresh
+    if (!audio.src.includes(src)) {
+        audio.src = src;
+        audio.load(); // Ensure it reloads the new source
+    }
     
-    // We catch the promise to handle the "User must interact first" error gracefully
-    audioRef.current.play().then(() => {
-      setIsPlaying(true);
-    }).catch(e => {
-      console.warn("Audio play blocked until user interaction:", e);
-      setIsPlaying(false);
-    });
-  }, []);
+    const playPromise = audio.play();
+
+    if (playPromise !== undefined) {
+        playPromise
+        .then(() => {
+            console.log("[Audio System] Playback started successfully.");
+            setIsPlaying(true);
+        })
+        .catch(error => {
+            console.warn("[Audio System] Autoplay prevented. Waiting for interaction.", error);
+            setIsPlaying(false);
+        });
+    }
+  }, [getAudioInstance]);
 
   const stop = useCallback(() => {
     if (audioRef.current) {

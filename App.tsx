@@ -14,17 +14,11 @@ const App: React.FC = () => {
   const { playTrack, stop, toggleMute, isMuted } = useAudio();
   const [systemInitialized, setSystemInitialized] = useState(false);
 
-  // Audio Logic Controller
-  useEffect(() => {
-      if (systemInitialized) {
-          // For now, we loop the INTRO track as the main theme.
-          // In the future, we can switch based on gameState.isCombatActive
-          playTrack('INTRO');
-      }
-  }, [systemInitialized, playTrack]);
-
+  // Audio is now triggered directly by the interaction event to satisfy browser security policies.
   const handleInitialize = () => {
+      console.log("Initializing System...");
       setSystemInitialized(true);
+      playTrack('INTRO');
   };
 
   return (
