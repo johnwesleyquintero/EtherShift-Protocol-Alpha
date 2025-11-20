@@ -48,21 +48,7 @@ const App: React.FC = () => {
 
   // Helper for Mobile Combat Input
   const handleMobileCombatInput = (dir: Direction) => {
-      // Need to simulate the key press for the engine, or expose a specific method
-      // Since useGameEngine listens to window keys, we can dispatch an event or
-      // we can modify useGameEngine to expose handleRuneInput. 
-      // For now, we trigger a specific custom event or we accept that we need to expose handleRuneInput.
-      // To keep changes minimal in useGameEngine, we'll simulate a keypress.
-      
-      const keyMap = {
-          [Direction.UP]: 'ArrowUp',
-          [Direction.DOWN]: 'ArrowDown',
-          [Direction.LEFT]: 'ArrowLeft',
-          [Direction.RIGHT]: 'ArrowRight'
-      };
-      
-      const event = new KeyboardEvent('keydown', { key: keyMap[dir] });
-      window.dispatchEvent(event);
+      actions.handleRuneInput(dir);
       playSfx('SFX_UI');
   };
 

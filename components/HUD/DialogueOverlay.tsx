@@ -33,7 +33,10 @@ export const DialogueOverlay: React.FC<DialogueOverlayProps> = ({ activeDialogue
     return () => clearInterval(interval);
   }, [currentNode.id, currentNode.text]);
 
-  // Skip typing on click if wanted (optional logic to implement later)
+  const completeTyping = () => {
+      setDisplayedText(currentNode.text);
+      setIsTyping(false);
+  };
 
   return (
     <div className="absolute inset-x-0 bottom-0 z-50 p-4 lg:p-8 animate-in slide-in-from-bottom-10 duration-300">
@@ -52,9 +55,13 @@ export const DialogueOverlay: React.FC<DialogueOverlayProps> = ({ activeDialogue
 
         {/* Content Area */}
         <div className="flex-1 p-6 flex flex-col justify-between min-h-[200px]">
-            <div className="mb-6 relative">
+            <div 
+                className={`mb-6 relative ${isTyping ? 'cursor-pointer' : ''}`}
+                onClick={isTyping ? completeTyping : undefined}
+                title={isTyping ? "Click to skip" : undefined}
+            >
                 <MessageSquare size={16} className="absolute -left-5 top-1 text-slate-600" />
-                <p className="text-lg text-slate-200 font-mono leading-relaxed">
+                <p className="text-lg text-slate-200 font-mono leading-relaxed select-none">
                     {displayedText}
                     {isTyping && <span className="inline-block w-2 h-4 ml-1 bg-cyan-400 animate-pulse align-middle"></span>}
                 </p>

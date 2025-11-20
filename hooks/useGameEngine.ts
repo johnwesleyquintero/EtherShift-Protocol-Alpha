@@ -218,6 +218,12 @@ export const useGameEngine = () => {
       }
 
       setGameState(prev => {
+          // Safety Check: Don't consume if already full
+          if (item.id === 'item_stim_01' && prev.stats.hp >= prev.stats.maxHp) {
+             addLog(`System integrity optimal. Conservation mode active.`, 'INFO');
+             return prev;
+          }
+
           // Remove 1 instance of the item
           const index = prev.inventory.findIndex(i => i.id === item.id);
           if (index === -1) return prev;
@@ -393,15 +399,19 @@ export const useGameEngine = () => {
              
              if (newTotalXp >= xpThreshold) {
                  addLog(`>> KERNEL UPGRADE: LEVEL ${prev.stats.level + 1} ESTABLISHED <<`, 'SYSTEM');
+                 const newLevel = prev.stats.level + 1;
+                 const newMaxHp = prev.stats.maxHp + 10;
+                 const newMaxMp = prev.stats.maxMp + 5;
+                 
                  newStats = {
                      ...newStats,
-                     level: prev.stats.level + 1,
-                     maxHp: prev.stats.maxHp + 10,
-                     maxMp: prev.stats.maxMp + 5,
+                     level: newLevel,
+                     maxHp: newMaxHp,
+                     maxMp: newMaxMp,
                      attack: prev.stats.attack + 2,
                      defense: prev.stats.defense + 1,
-                     hp: prev.stats.maxHp + 10, // Full Heal
-                     mp: prev.stats.maxMp + 5   // Full MP
+                     hp: newMaxHp, // Full Heal
+                     mp: newMaxMp   // Full MP
                  };
              }
 
@@ -747,6 +757,7 @@ export const useGameEngine = () => {
         consumeItem,
         handleInteraction,
         handleCombatUI,
+        handleRuneInput, // EXPOSED
         selectDialogueOption,
         system: {
             saveGame,
