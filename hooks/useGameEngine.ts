@@ -218,10 +218,34 @@ export const useGameEngine = () => {
       }
 
       setGameState(prev => {
-          // Safety Check: Don't consume if already full
-          if (item.id === 'item_stim_01' && prev.stats.hp >= prev.stats.maxHp) {
-             addLog(`System integrity optimal. Conservation mode active.`, 'INFO');
-             return prev;
+          let effectApplied = false;
+          let newHp = prev.stats.hp;
+          let newMp = prev.stats.mp;
+          let logMsg = '';
+
+          // Safety Checks and Effect Application
+          if (item.effectType === 'HEAL_HP' && item.effectValue) {
+             if (prev.stats.hp >= prev.stats.maxHp) {
+                 addLog(`System integrity already optimal.`, 'INFO');
+                 return prev;
+             }
+             newHp = Math.min(prev.stats.maxHp, prev.stats.hp + item.effectValue);
+             logMsg = `Consumed [${item.name}]. Systems repaired (+${item.effectValue} HP).`;
+             effectApplied = true;
+          } 
+          else if (item.effectType === 'RESTORE_MP' && item.effectValue) {
+             if (prev.stats.mp >= prev.stats.maxMp) {
+                 addLog(`Ether reserves already full.`, 'INFO');
+                 return prev;
+             }
+             newMp = Math.min(prev.stats.maxMp, prev.stats.mp + item.effectValue);
+             logMsg = `Consumed [${item.name}]. Ether charged (+${item.effectValue} MP).`;
+             effectApplied = true;
+          }
+
+          if (!effectApplied) {
+              addLog(`Item has no compatible interface.`, 'INFO');
+              return prev;
           }
 
           // Remove 1 instance of the item
@@ -231,15 +255,7 @@ export const useGameEngine = () => {
           const newInventory = [...prev.inventory];
           newInventory.splice(index, 1);
 
-          // Apply Effects
-          let hpRestored = 0;
-          if (item.id === 'item_stim_01') {
-              hpRestored = 40;
-          }
-
-          const newHp = Math.min(prev.stats.maxHp, prev.stats.hp + hpRestored);
-          
-          addLog(`Consumed [${item.name}]. Systems repaired (+${hpRestored} HP).`, 'SYSTEM');
+          addLog(logMsg, 'SYSTEM');
 
           // If in combat, this consumes a turn
           if (prev.isCombatActive && prev.activeEnemy) {
@@ -247,7 +263,7 @@ export const useGameEngine = () => {
               setTimeout(() => resolveCombatTurn(prev.activeEnemy!.hp, enemyId), 1000);
               return {
                   ...prev,
-                  stats: { ...prev.stats, hp: newHp },
+                  stats: { ...prev.stats, hp: newHp, mp: newMp },
                   inventory: newInventory,
                   combatState: { ...prev.combatState, phase: 'WAITING' } // Lock input
               };
@@ -255,7 +271,7 @@ export const useGameEngine = () => {
 
           return {
               ...prev,
-              stats: { ...prev.stats, hp: newHp },
+              stats: { ...prev.stats, hp: newHp, mp: newMp },
               inventory: newInventory
           };
       });
@@ -339,11 +355,31 @@ export const useGameEngine = () => {
       if (gameState.combatState.phase === 'WAITING') return; // Prevent input spam
 
       if (action === 'FLEE') {
-          addLog("You disengaged from combat.", 'INFO');
+          addLog("Tactical retreat initiated.", 'INFO');
+          
+          // Calculate retreat position (Backward from facing)
+          let backX = gameState.playerPos.x;
+          let backY = gameState.playerPos.y;
+          
+          switch (gameState.playerFacing) {
+              case Direction.UP: backY += 1; break; // Back is down
+              case Direction.DOWN: backY -= 1; break; // Back is up
+              case Direction.LEFT: backX += 1; break; // Back is right
+              case Direction.RIGHT: backX -= 1; break; // Back is left
+          }
+
+          // Validate retreat tile (Basic check: inside bounds + not a wall)
+          // We access 'tiles' from closure scope. 
+          const isSafe = tiles.some(t => 
+             t.x === backX && t.y === backY && t.type !== TileType.WALL && t.type !== TileType.VOID && t.type !== TileType.WATER
+          );
+
           setGameState(prev => ({ 
               ...prev, 
               isCombatActive: false, 
               activeEnemy: null,
+              // If retreat is safe, move player back. If not, stay put (but still leave combat)
+              playerPos: isSafe ? { x: backX, y: backY } : prev.playerPos, 
               combatState: { phase: 'MENU', selectedSkillId: null, inputBuffer: [], lastInputResult: 'NEUTRAL' }
           }));
           return;
@@ -448,7 +484,7 @@ export const useGameEngine = () => {
           };
       });
 
-  }, [gameState.activeEnemy, gameState.stats, gameState.combatState.phase, addLog, resolveCombatTurn]);
+  }, [gameState.activeEnemy, gameState.stats, gameState.combatState.phase, addLog, resolveCombatTurn, tiles, gameState.playerPos, gameState.playerFacing]);
 
   // Public handler for UI clicks
   const handleCombatUI = (action: 'ATTACK' | 'FLEE' | 'OPEN_SKILLS' | 'CANCEL_SKILL' | 'SELECT_SKILL', skillId?: string) => {

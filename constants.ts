@@ -37,6 +37,16 @@ export const SAMPLE_ITEMS: Record<string, Item> = {
     name: 'Bio-Stim Pack',
     description: 'Emergency nanobots. Restores HP.',
     type: 'CONSUMABLE',
+    effectType: 'HEAL_HP',
+    effectValue: 40
+  },
+  ETHER_CELL: {
+    id: 'item_ether_01',
+    name: 'Ether Cell',
+    description: 'Compressed data packets. Restores MP.',
+    type: 'CONSUMABLE',
+    effectType: 'RESTORE_MP',
+    effectValue: 20
   },
   DATA_CHIP: {
     id: 'item_chip_01',
@@ -168,7 +178,8 @@ const ZONE_DB: Record<string, ZoneConfig> = {
     entities: [
       { x: 5, y: 2, type: InteractableType.NPC, id: 'npc_sage', name: 'WesAI Echo', data: { dialogueId: 'sage_intro', dialogue: ["The Gateway to the East is open."] } },
       { x: 8, y: 5, type: InteractableType.ENEMY, id: 'enemy_glitch_01', name: 'Glitch Sentinel', data: { hp: 50, maxHp: 50, attack: 8, xpReward: 25, creditsReward: 42 } },
-      { x: 10, y: 2, type: InteractableType.ZONE_GATE, id: 'gate_to_02', name: 'Sector Link -> 02', data: { targetZoneId: 'sector-02', targetZoneName: 'Sector-02: The Archives', targetPosition: { x: 1, y: 5 }, targetFacing: Direction.RIGHT } }
+      { x: 10, y: 2, type: InteractableType.ZONE_GATE, id: 'gate_to_02', name: 'Sector Link -> 02', data: { targetZoneId: 'sector-02', targetZoneName: 'Sector-02: The Archives', targetPosition: { x: 1, y: 5 }, targetFacing: Direction.RIGHT } },
+      { x: 2, y: 8, type: InteractableType.ITEM, id: 'chest_ether', name: 'Hidden Cache', data: { itemReward: SAMPLE_ITEMS.ETHER_CELL, isHidden: true } }
     ]
   },
   'sector-02': {

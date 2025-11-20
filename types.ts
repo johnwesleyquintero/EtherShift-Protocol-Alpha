@@ -94,6 +94,8 @@ export interface Item {
   name: string;
   description: string;
   type: 'KEY' | 'CONSUMABLE' | 'ARTIFACT';
+  effectType?: 'HEAL_HP' | 'RESTORE_MP'; // New: Dynamic effects
+  effectValue?: number; // New: Magnitude of effect
 }
 
 export interface Skill {

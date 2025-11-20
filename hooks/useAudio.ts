@@ -2,9 +2,17 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { AUDIO_SOURCES } from '../constants';
 
+const STORAGE_KEY_MUTE = 'ethershift_audio_pref';
+
 export const useAudio = () => {
   const musicRef = useRef<HTMLAudioElement | null>(null);
-  const [isMuted, setIsMuted] = useState(false);
+  
+  // Initialize mute state from local storage
+  const [isMuted, setIsMuted] = useState(() => {
+      const saved = localStorage.getItem(STORAGE_KEY_MUTE);
+      return saved ? JSON.parse(saved) : false;
+  });
+  
   const [volume] = useState(0.3); 
   const [isPlaying, setIsPlaying] = useState(false);
 
@@ -21,11 +29,12 @@ export const useAudio = () => {
     };
   }, []); // Run once on mount
 
-  // Handle Volume/Mute changes
+  // Handle Volume/Mute changes & Persistence
   useEffect(() => {
     if (musicRef.current) {
       musicRef.current.volume = isMuted ? 0 : volume;
     }
+    localStorage.setItem(STORAGE_KEY_MUTE, JSON.stringify(isMuted));
   }, [isMuted, volume]);
 
   const playTrack = useCallback((trackKey: keyof typeof AUDIO_SOURCES) => {
@@ -73,7 +82,7 @@ export const useAudio = () => {
   }, []);
 
   const toggleMute = useCallback(() => {
-    setIsMuted(prev => !prev);
+    setIsMuted((prev: boolean) => !prev);
   }, []);
 
   return {
