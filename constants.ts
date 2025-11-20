@@ -9,11 +9,14 @@ export const INITIAL_LOG_MESSAGE = "System Online. Neural link established. Welc
 // --- Audio Assets ---
 
 export const AUDIO_SOURCES = {
-  // Using a silent WAV Data URI to ensure the audio system initializes correctly without external file dependencies
+  // Silent WAV for initialization/ambiance placeholder
   INTRO: 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQQAAAAAAA==',
-  // Future tracks can be added here, e.g.:
-  // COMBAT: '/soundtrack/battle_protocol.mp3',
-  // SFX_SHIFT: '/soundtrack/sfx_shift.mp3'
+  
+  // Simple sine beep for UI feedback (Short Blip)
+  SFX_UI: 'data:audio/wav;base64,UklGRl9vT1BXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YUdvT1AAAAAAAAD/AAAAAAAA//8AAP//AAD//wAA//8AAP//AAD//wAA//8AAP//AAD//wAA//8AAP//AAD//wAA//8AAP//AAD//wAA',
+  
+  // Low frequency buzz for Shift (Placeholder)
+  SFX_SHIFT: 'data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQQAAAAAAA==' 
 };
 
 export const SAMPLE_ITEMS: Record<string, Item> = {

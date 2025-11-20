@@ -3,91 +3,71 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { AUDIO_SOURCES } from '../constants';
 
 export const useAudio = () => {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const musicRef = useRef<HTMLAudioElement | null>(null);
   const [isMuted, setIsMuted] = useState(false);
-  const [volume] = useState(0.3); // Default to 30% volume for background ambience
+  const [volume] = useState(0.3); 
   const [isPlaying, setIsPlaying] = useState(false);
 
-  // Helper to safely get or create the audio instance
-  const getAudioInstance = useCallback(() => {
-    if (!audioRef.current) {
-      const audio = new Audio();
-      audio.loop = true;
-      audio.volume = isMuted ? 0 : volume;
-      
-      // Debugging listeners
-      audio.addEventListener('error', (e) => {
-        const err = audio.error;
-        console.error("Audio Error:", err ? `Code: ${err.code}, Message: ${err.message}` : "Unknown Error");
-        
-        // Truncate source log if it's a data URI to avoid spamming console
-        const srcDisplay = audio.src.length > 50 ? audio.src.substring(0, 50) + '...' : audio.src;
-        console.error("Attempted Source:", srcDisplay);
-      });
-      
-      audioRef.current = audio;
-    }
-    return audioRef.current;
-  }, [isMuted, volume]);
-
-  // Handle Volume/Mute changes dynamically
+  // Initialize Music Player (Background)
   useEffect(() => {
-    const audio = audioRef.current;
-    if (audio) {
-      audio.volume = isMuted ? 0 : volume;
-    }
-  }, [isMuted, volume]);
+    const audio = new Audio();
+    audio.loop = true;
+    audio.volume = isMuted ? 0 : volume;
+    musicRef.current = audio;
 
-  // Cleanup on unmount
-  useEffect(() => {
     return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current = null;
-      }
+      audio.pause();
+      musicRef.current = null;
     };
-  }, []);
+  }, []); // Run once on mount
+
+  // Handle Volume/Mute changes
+  useEffect(() => {
+    if (musicRef.current) {
+      musicRef.current.volume = isMuted ? 0 : volume;
+    }
+  }, [isMuted, volume]);
 
   const playTrack = useCallback((trackKey: keyof typeof AUDIO_SOURCES) => {
-    const audio = getAudioInstance();
+    const audio = musicRef.current;
+    if (!audio) return;
+
     const src = AUDIO_SOURCES[trackKey];
     
-    console.log(`[Audio System] Attempting to play: ${trackKey}`);
-
-    // If already playing this track, just ensure it's playing
-    if (audio.src.includes(src) && !audio.paused) return;
-
-    // If changing tracks or starting fresh
+    // Only change source if it's different
     if (!audio.src.includes(src)) {
         audio.src = src;
-        audio.load(); // Ensure it reloads the new source
+        audio.load();
     }
     
-    const playPromise = audio.play();
+    // Prevent double-play
+    if (isPlaying && !audio.paused) return;
 
+    const playPromise = audio.play();
     if (playPromise !== undefined) {
         playPromise
-        .then(() => {
-            console.log("[Audio System] Playback started successfully.");
-            setIsPlaying(true);
-        })
+        .then(() => setIsPlaying(true))
         .catch(error => {
-            // Differentiate between Autoplay blocks and loading errors
-            if (error.name === 'NotAllowedError') {
-                console.warn("[Audio System] Autoplay prevented. Waiting for user interaction.");
-            } else if (error.name === 'NotSupportedError') {
-                console.error("[Audio System] Audio source not supported or file missing.");
-            } else {
-                console.error("[Audio System] Playback error:", error);
-            }
+            console.warn("[Audio] Autoplay prevented or source missing.", error);
             setIsPlaying(false);
         });
     }
-  }, [getAudioInstance]);
+  }, [isPlaying]);
+
+  const playSfx = useCallback((sfxKey: keyof typeof AUDIO_SOURCES) => {
+      if (isMuted) return;
+      
+      // Create a new Audio instance for every SFX to allow overlapping
+      const sfx = new Audio(AUDIO_SOURCES[sfxKey]);
+      sfx.volume = 0.4; // Slightly louder than bg
+      sfx.play().catch(() => {
+          // Ignore SFX errors (usually interaction requirement)
+      });
+  }, [isMuted]);
 
   const stop = useCallback(() => {
-    if (audioRef.current) {
-      audioRef.current.pause();
+    if (musicRef.current) {
+      musicRef.current.pause();
       setIsPlaying(false);
     }
   }, []);
@@ -98,6 +78,7 @@ export const useAudio = () => {
 
   return {
     playTrack,
+    playSfx,
     stop,
     toggleMute,
     isMuted,

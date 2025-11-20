@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useGameEngine } from './hooks/useGameEngine';
 import { useAudio } from './hooks/useAudio';
 import { WorldGrid } from './components/WorldGrid';
@@ -7,18 +7,63 @@ import { CombatArena } from './components/CombatArena';
 import { StatusPanel } from './components/HUD/StatusPanel';
 import { LogConsole } from './components/HUD/LogConsole';
 import { DialogueOverlay } from './components/HUD/DialogueOverlay';
-import { Keyboard, Monitor, Cpu, Globe, Skull, RotateCcw, Trash2, MousePointerClick, Power } from 'lucide-react';
+import { MobileControls } from './components/HUD/MobileControls';
+import { Monitor, Globe, Skull, RotateCcw, Trash2, MousePointerClick, Power, Keyboard, Cpu } from 'lucide-react';
+import { Direction } from './types';
 
 const App: React.FC = () => {
   const { tiles, gameState, actions } = useGameEngine();
-  const { playTrack, stop, toggleMute, isMuted } = useAudio();
+  const { playTrack, playSfx, stop, toggleMute, isMuted } = useAudio();
   const [systemInitialized, setSystemInitialized] = useState(false);
 
-  // Audio is now triggered directly by the interaction event to satisfy browser security policies.
+  // Ref to track previous state for Reactive Audio Triggers
+  const prevPosRef = useRef(gameState.playerPos);
+  const prevShiftRef = useRef(gameState.isShiftActive);
+
   const handleInitialize = () => {
       console.log("Initializing System...");
       setSystemInitialized(true);
       playTrack('INTRO');
+      playSfx('SFX_UI');
+  };
+
+  // --- Reactive Audio Effects ---
+  useEffect(() => {
+      if (!systemInitialized) return;
+
+      // Footsteps (Movement)
+      if (prevPosRef.current.x !== gameState.playerPos.x || prevPosRef.current.y !== gameState.playerPos.y) {
+          // Use UI blip as placeholder footstep
+          playSfx('SFX_UI');
+      }
+      prevPosRef.current = gameState.playerPos;
+
+      // Shift Toggle Sound
+      if (prevShiftRef.current !== gameState.isShiftActive) {
+          playSfx('SFX_SHIFT');
+      }
+      prevShiftRef.current = gameState.isShiftActive;
+
+  }, [gameState.playerPos, gameState.isShiftActive, playSfx, systemInitialized]);
+
+  // Helper for Mobile Combat Input
+  const handleMobileCombatInput = (dir: Direction) => {
+      // Need to simulate the key press for the engine, or expose a specific method
+      // Since useGameEngine listens to window keys, we can dispatch an event or
+      // we can modify useGameEngine to expose handleRuneInput. 
+      // For now, we trigger a specific custom event or we accept that we need to expose handleRuneInput.
+      // To keep changes minimal in useGameEngine, we'll simulate a keypress.
+      
+      const keyMap = {
+          [Direction.UP]: 'ArrowUp',
+          [Direction.DOWN]: 'ArrowDown',
+          [Direction.LEFT]: 'ArrowLeft',
+          [Direction.RIGHT]: 'ArrowRight'
+      };
+      
+      const event = new KeyboardEvent('keydown', { key: keyMap[dir] });
+      window.dispatchEvent(event);
+      playSfx('SFX_UI');
   };
 
   return (
@@ -86,14 +131,14 @@ const App: React.FC = () => {
              
              <div className="flex gap-4 mt-4">
                  <button 
-                    onClick={actions.system.loadGame}
+                    onClick={() => { actions.system.loadGame(); playSfx('SFX_UI'); }}
                     className="flex items-center gap-2 px-6 py-3 bg-slate-900 border border-red-500 text-red-400 hover:bg-red-900 hover:text-white transition-all rounded uppercase font-bold tracking-wider"
                  >
                      <RotateCcw size={18} />
                      Reboot System
                  </button>
                  <button 
-                    onClick={actions.system.resetGame}
+                    onClick={() => { actions.system.resetGame(); playSfx('SFX_UI'); }}
                     className="flex items-center gap-2 px-6 py-3 bg-slate-900 border border-slate-600 text-slate-400 hover:bg-slate-800 hover:border-slate-400 transition-all rounded uppercase font-bold tracking-wider"
                  >
                      <Trash2 size={18} />
@@ -107,9 +152,19 @@ const App: React.FC = () => {
       {gameState.isDialogueActive && gameState.activeDialogue && (
         <DialogueOverlay 
           activeDialogue={gameState.activeDialogue} 
-          onSelectOption={actions.selectDialogueOption} 
+          onSelectOption={(id) => { actions.selectDialogueOption(id); playSfx('SFX_UI'); }} 
         />
       )}
+
+      {/* Mobile Controls */}
+      <MobileControls 
+        onMove={actions.movePlayer}
+        onInteract={() => { actions.handleInteraction(); playSfx('SFX_UI'); }}
+        onShift={actions.toggleShift}
+        isShiftActive={gameState.isShiftActive}
+        isCombatActive={gameState.isCombatActive}
+        onCombatInput={handleMobileCombatInput}
+      />
 
       {/* Main Game Container */}
       <main className={`relative z-10 w-full max-w-5xl grid grid-cols-1 lg:grid-cols-12 gap-6 ${gameState.isGameOver ? 'blur-sm grayscale opacity-50 pointer-events-none' : ''}`}>
@@ -142,7 +197,7 @@ const App: React.FC = () => {
                         enemy={gameState.activeEnemy} 
                         playerStats={gameState.stats}
                         combatState={gameState.combatState}
-                        onAction={actions.handleCombatUI}
+                        onAction={(a, d) => { actions.handleCombatUI(a, d); playSfx('SFX_UI'); }}
                     />
                 ) : (
                     <WorldGrid tiles={tiles} gameState={gameState} />
@@ -166,7 +221,7 @@ const App: React.FC = () => {
         </div>
 
         {/* Right Column: HUD & Logs */}
-        <div className="lg:col-span-4 flex flex-col h-full">
+        <div className="lg:col-span-4 flex flex-col h-full pb-24 lg:pb-0">
             <div className="hidden lg:block mb-6">
                 <h1 className="text-4xl font-bold text-cyan-500 tracking-tighter drop-shadow-[0_0_10px_rgba(34,211,238,0.5)]">
                     ETHER<span className="text-slate-100">SHIFT</span>
@@ -207,7 +262,7 @@ const App: React.FC = () => {
                             return (
                                 <button 
                                     key={idx} 
-                                    onClick={() => isConsumable && actions.consumeItem(item)}
+                                    onClick={() => { if(isConsumable) { actions.consumeItem(item); playSfx('SFX_UI'); } }}
                                     disabled={!isConsumable || isBusy}
                                     className={`
                                         px-2 py-1 rounded text-xs border transition-all flex items-center gap-1
@@ -226,11 +281,6 @@ const App: React.FC = () => {
                         })
                     )}
                 </div>
-            </div>
-
-            {/* Mobile Controls Hint */}
-            <div className="lg:hidden mt-4 text-center text-xs text-slate-500">
-                Use Keyboard or External Input Device. Touch controls offline.
             </div>
         </div>
 
